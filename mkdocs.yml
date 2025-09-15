@@ -1,0 +1,49 @@
+site_name: AERO-Optim
+site_url: https://mschouler.github.io/aero-optim/
+repo_url: https://github.com/mschouler/aero-optim
+site_dir: public
+site_favicon: Figures/icon.png
+nav:
+  - Getting Started: index.md
+  - User Guide:
+    - 'FFD Module': ffd.md
+    - 'Mesh Module': mesh.md
+    - 'Simulator Module': simulator.md
+    - 'Evolution and Optimizer Modules': optimizer.md
+    - 'Multi-Fidelity Surrogate Module': mfsm.md
+  - Developer Guide:
+    - 'FFD Module': dev_ffd.md
+    - 'Mesh Module': dev_mesh.md
+    - 'Simulator Module': dev_simulator.md
+    - 'Evolution and Optimizer Modules': dev_optimizer.md
+    - 'Multi-Fidelity Surrogate Module': dev_mfsm.md
+    - 'Coverage Report' : coverage.md
+  - Optimization Examples:
+    - 'Customized Optimization': example_custom.md
+    - 'Surrogate based Optimization' : example_smo.md
+    - 'Multi-Fidelity Surrogate based Optimization': example_mf_smo.md
+theme: 
+  name: readthedocs
+  logo: Figures/logo.png
+
+extra_javascript: 
+    - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [aero_optim]
+          options:
+            show_signature_annotations: true

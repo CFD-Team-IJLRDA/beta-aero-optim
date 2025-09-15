@@ -1,0 +1,177 @@
+import logging
+import operator as ope
+
+from abc import ABC, abstractmethod
+from typing import Type
+
+from pymoo.optimize import minimize
+from pymoo.termination import get_termination
+from aero_optim.optim.pymoo_optimizer import PymooDebugOptimizer
+from aero_optim.optim.pymoo_optimizer import PymooWolfOptimizer
+from aero_optim.optim.pymoo_optimizer import select_strategy as pymoo_select_strategy
+
+from inspyred.ec import Bounder, terminators
+from aero_optim.optim.inspyred_optimizer import InspyredDebugOptimizer
+from aero_optim.optim.inspyred_optimizer import InspyredWolfOptimizer
+from aero_optim.optim.inspyred_optimizer import select_strategy as inspyred_select_strategy
+
+from aero_optim.optim.optimizer import Optimizer
+from aero_optim.utils import get_custom_class
+
+logger = logging.getLogger(__name__)
+
+
+class Evolution(ABC):
+    """
+    This class implements an abstract evolution object.
+    """
+    def __init__(self, config: dict, debug: bool):
+        self.custom_file: str = config["study"].get("custom_file", "")
+        self.set_optimizer(debug=debug)
+        self.optimizer: Type[Optimizer] = self.OptimizerClass(config)
+        self.set_ea()
+
+    @abstractmethod
+    def set_optimizer(self, *args, **kwargs):
+        """
+        Sets the optimizer object.
+        """
+        self.OptimizerClass = (
+            get_custom_class(self.custom_file, "CustomOptimizer") if self.custom_file else None
+        )
+
+    @abstractmethod
+    def set_ea(self, *args, **kwargs):
+        """
+        Sets the evolutionary computation algorithm.
+        """
+
+    @abstractmethod
+    def evolve(self, *args, **kwargs):
+        """
+        Defines how to execute the optimization.
+        """
+
+
+class PymooEvolution(Evolution):
+    """
+    This class implements a default pymoo based evolution object.
+    """
+    def __init__(self, config: dict, debug: bool = False):
+        super().__init__(config, debug)
+
+    def set_optimizer(self, debug: bool = False):
+        """
+        **Instantiates** the optimizer attribute as custom if any or from default classes.
+        """
+        super().set_optimizer()
+        if not self.OptimizerClass:
+            if debug:
+                self.OptimizerClass = PymooDebugOptimizer
+            else:
+                self.OptimizerClass = PymooWolfOptimizer
+            logger.info(f"optimizer set to {self.OptimizerClass}")
+
+    def set_ea(self):
+        """
+        **Instantiates** the default algorithm attribute.
+        """
+        self.algorithm = pymoo_select_strategy(
+            self.optimizer.strategy,
+            self.optimizer.doe_size,
+            self.optimizer.generator._pymoo_generator(),
+            self.optimizer.ea_kwargs
+        )
+
+    def evolve(self):
+        """
+        **Executes** the default evolution method.
+        """
+        
+        print("\n=== Attributi di istanza ===")
+        print(self.__dict__)
+
+        print("\n=== Attributi e metodi pubblici ===")
+        print([attr for attr in dir(self) if not attr.startswith('_')])
+
+        print("\n=== Attributi e metodi pubblici di OptimizerClass ===")
+        print([attr for attr in dir(self.optimizer) if not attr.startswith('_')])
+
+        print("\n=== Attributi e metodi pubblici di OptimizerClass.FFD ===")
+        import numpy as np
+        for attr in dir(self.optimizer.ffd):
+            if not attr.startswith('_'):
+                value = getattr(self.optimizer.ffd, attr, None)
+                if not isinstance(value, (list, tuple, dict, set, np.ndarray)):
+                    print(f"{attr} ==== {value}")
+
+        res = minimize(problem=self.optimizer,
+                       algorithm=self.algorithm,
+                       termination=get_termination("n_gen", self.optimizer.max_generations),
+                       seed=self.optimizer.seed,
+                       verbose=True)
+
+        self.optimizer.final_observe()
+
+        # output results
+        best = res.F
+        index, opt_J = min(enumerate(self.optimizer.J), key=lambda x: abs(best - x[1]))
+        gid, cid = (index // self.optimizer.doe_size, index % self.optimizer.doe_size)
+        logger.info(f"optimal J: {opt_J} (J_pymoo: {best}),\n"
+                    f"D: {' '.join([str(d) for d in self.optimizer.inputs[gid][cid]])}\n"
+                    f"D_pymoo: {' '.join([str(d) for d in res.X])}\n"
+                    f"[g{gid}, c{cid}]")
+
+
+class InspyredEvolution(Evolution):
+    """
+    This class implements a default inspyred based evolution object.
+    """
+    def __init__(self, config: dict, debug: bool = False):
+        super().__init__(config, debug)
+        self.algorithm.observer = self.optimizer._observe
+        self.algorithm.terminator = terminators.generation_termination
+
+    def set_optimizer(self, debug: bool = False):
+        """
+        **Instantiates** the optimizer attribute as custom if any or from default classes.
+        """
+        super().set_optimizer()
+        if not self.OptimizerClass:
+            if debug:
+                self.OptimizerClass = InspyredDebugOptimizer
+            else:
+                self.OptimizerClass = InspyredWolfOptimizer
+            logger.info(f"optimizer set to {self.OptimizerClass}")
+
+    def set_ea(self):
+        """
+        **Instantiates** the default algorithm attribute.
+        """
+        self.algorithm = inspyred_select_strategy(self.optimizer.strategy, self.optimizer.prng)
+
+    def evolve(self):
+        """
+        **Executes** the default evolution method.
+        """
+        final_pop = self.algorithm.evolve(generator=self.optimizer.generator._ins_generator,
+                                          evaluator=self.optimizer._evaluate,
+                                          pop_size=self.optimizer.doe_size,
+                                          max_generations=self.optimizer.max_generations,
+                                          bounder=Bounder(*self.optimizer.bound),
+                                          maximize=self.optimizer.maximize,
+                                          **self.optimizer.ea_kwargs)
+
+        self.optimizer.final_observe()
+
+        # output results
+        best = max(final_pop)
+        index, opt_J = (
+            max(enumerate(self.optimizer.J), key=ope.itemgetter(1)) if self.optimizer.maximize else
+            min(enumerate(self.optimizer.J), key=ope.itemgetter(1))
+        )
+        gid, cid = (index // self.optimizer.doe_size, index % self.optimizer.doe_size)
+        logger.info(f"optimal J: {opt_J} (J_ins: {best.fitness}),\n"
+                    f"D: {' '.join([str(d) for d in self.optimizer.inputs[gid][cid]])}\n"
+                    f"D_ins: {' '.join([str(d) for d in best.candidate[:self.optimizer.n_design]])}"
+                    f"\n[g{gid}, c{cid}]")

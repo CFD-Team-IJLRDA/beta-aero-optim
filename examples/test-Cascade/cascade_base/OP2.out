@@ -1,0 +1,6 @@
+simulations performed with: Namespace(input='cascade_base.json', nproc=90, ms=-1, adp=False, op1=False, op2=True)
+
+** OP2 SIMULATION (-5 deg.) **
+** ------------------------ **
+WARNING -- cascade_base.mesh not found
+>> OP2 failed after 0.0023458003997802734 seconds.

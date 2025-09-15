@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools >= 46.4.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aero-optim"
+version = "0.0.1"
+requires-python = ">=3.10"
+authors = [
+  {name = "Marc Schouler", email = "marc.schouler@sorbonne-universite.fr"},
+]
+description = "AERO-Optim is a simple aerodynamic shape optimization framework."
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["aerodynamic", "shape optimization", "CFD", "freeform deformation", "automatic meshing"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3"
+]
+
+[tool.setuptools.packages.find]
+include = ["aero_optim"]
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov"]
+doc = ["mkdocs-material", "mkdocstrings-python"]
+
+[project.urls]
+Homepage = "https://github.com/mschouler/aero-optim"
+Documentation = "https://mschouler.github.io/aero-optim/"
+Repository = "https://github.com/mschouler/aero-optim.git"
+"Bug Tracker" = "https://github.com/mschouler/aero-optim/issues"
+
+[project.scripts]
+ffd = "aero_optim.main.auto_ffd:main"
+mesh = "aero_optim.main.auto_gmsh:main"
+simulator = "aero_optim.main.auto_simulator:main"
+optim = "aero_optim.main.main_optim:main"

@@ -1,0 +1,6 @@
+simulations performed with: Namespace(input='cascade_base.json', nproc=90, ms=-1, adp=True, op1=False, op2=False)
+
+** ADP SIMULATION **
+** -------------- **
+WARNING -- cascade_base.mesh not found
+>> ADP failed after 0.0025365352630615234 seconds.
