@@ -488,6 +488,8 @@ class MeshMusicaa:
             profile: np.ndarray,
             outdir: str,
     ) -> str:
+
+        # profile.append(profile[0])
         """
         **Writes** the deformed profile in a format such that the MUSICAA solver
         can generate the fully deformed mesh via a Fortran routine.
@@ -497,6 +499,10 @@ class MeshMusicaa:
         check_dir(os.path.join(outdir, "MESH"))
         mesh_dir = os.path.join(outdir, "MESH", f'musicaa_{self.outfile}')
         check_dir(mesh_dir)
+
+        print(f'write_deformed_mesh_edges profile: {len(profile)}')
+        print(f'elements repeated: {count_repeated_sublists(profile)}')
+        print(f'last vs first: {profile[-1]} vs {profile[0]}')
 
         # loop over blocks
         j = 0
@@ -598,9 +604,25 @@ class MeshMusicaa:
         """
         # read profile
         profile = from_dat(self.dat_file)
+        # if profile[0][0] == profile[-1][1]:
+        #     profile[-1][1] += 1e-12
+        print(f'build_mesh first vs last: {profile[0]} vs {profile[-1]}')
 
         # create musicaa_<outfile>_bl*.x files
         mesh_dir = self.write_deformed_mesh_edges(profile, self.outdir)
 
         # deform mesh with MUSICAA
         self.deform_mesh(mesh_dir)
+
+
+
+def count_repeated_sublists(lst, tol=1e-9):
+    def almost_equal(a, b):
+        return all(math.isclose(x, y, abs_tol=tol) for x, y in zip(a, b))
+    unique = []
+    repeats = set()
+    for i, x in enumerate(lst):
+        for j, y in enumerate(lst[i+1:], i+1):
+            if almost_equal(x, y):
+                repeats.add(tuple(y))
+    return len(repeats)

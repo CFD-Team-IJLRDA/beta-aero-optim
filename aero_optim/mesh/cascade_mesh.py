@@ -92,10 +92,21 @@ class CascadeMesh(Mesh):
         """
         d = np.sqrt([x**2 + y**2 for x, y, _ in self.pts])
         start = np.argmin(d)
-        if self.pts[start + 1][1] > self.pts[start][1]:
+
+        try:
+            [y0, y1] = [self.pts[start][1], self.pts[start+1][1]]
+        except:
+            [y0, y1] = [self.pts[start-1][1], self.pts[start][1]]
+
+        if y1 > y0:
             return [[p[0], p[1], p[2]] for p in self.pts[start:] + self.pts[:start]]
         else:
             return [[p[0], p[1], p[2]] for p in self.pts[:start] + self.pts[start:]]
+        
+        # if self.pts[start + 1][1] > self.pts[start][1]:
+        #     return [[p[0], p[1], p[2]] for p in self.pts[start:] + self.pts[:start]]
+        # else:
+        #     return [[p[0], p[1], p[2]] for p in self.pts[:start] + self.pts[start:]]
 
     def build_bl(self, blade_tag: list[int]):
         """
@@ -147,7 +158,7 @@ class CascadeMesh(Mesh):
         pt_wall = [gmsh.model.geo.addPoint(p[0], p[1], p[2]) for p in wall]
 
         # blade splines and transfinite curves
-        if self.dlr_mesh:
+        if self.dlr_mesh == True:
             spl_1 = gmsh.model.geo.addSpline(pt_wall[:35])
             spl_2 = gmsh.model.geo.addSpline(pt_wall[35 - 1:88])
             spl_3 = gmsh.model.geo.addSpline(pt_wall[88 - 1:129])
@@ -167,6 +178,27 @@ class CascadeMesh(Mesh):
             gmsh.model.geo.mesh.setTransfiniteCurve(spl_8, self.nodes_sp8, "Progression", 0.955)
             gmsh.model.geo.mesh.setTransfiniteCurve(spl_9, self.le // 2, "Progression", 0.9)
             spl_list = [spl_1, spl_2, spl_3, spl_4, spl_5, spl_6, spl_7, spl_8, spl_9]
+
+        elif self.dlr_mesh == 'True_275':
+
+            [n1, n2, n3, n4, n5, n6, n7, n8] = [5,69,117,147,163,232,272,275]
+            spl_1 = gmsh.model.geo.addSpline(pt_wall[n7 - 1:n8] + pt_wall[:n1])
+            spl_2 = gmsh.model.geo.addSpline(pt_wall[n1 - 1:n2])
+            spl_3 = gmsh.model.geo.addSpline(pt_wall[n2 - 1:n3])
+            spl_4 = gmsh.model.geo.addSpline(pt_wall[n3 - 1:n4])
+            spl_5 = gmsh.model.geo.addSpline(pt_wall[n4 - 1:n5])
+            spl_6 = gmsh.model.geo.addSpline(pt_wall[n5 - 1:n6])
+            spl_7 = gmsh.model.geo.addSpline(pt_wall[n6 - 1:n7])
+
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_1, self.le, "Progression", 1)
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_2, self.nodes_sp2, "Progression", 1.03)
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_3, self.nodes_sp3, "Progression", 1)
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_4, self.nodes_sp4, "Progression", 0.94)
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_5, self.te, "Progression", 1)
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_6, self.nodes_sp7, "Progression", 1.015)
+            gmsh.model.geo.mesh.setTransfiniteCurve(spl_7, self.nodes_sp8, "Progression", 0.955)
+            spl_list = [spl_1, spl_2, spl_3, spl_4, spl_5, spl_6, spl_7]
+
         else:
             spl_le = gmsh.model.geo.addSpline(pt_wall[287 - 1:322] + [pt_wall[0]] + pt_wall[:35])
             spl_ss = gmsh.model.geo.addSpline(

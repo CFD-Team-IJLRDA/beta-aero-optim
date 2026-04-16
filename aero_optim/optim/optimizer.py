@@ -14,7 +14,7 @@ from random import Random
 from typing import Any
 
 from aero_optim.geom import get_area
-from aero_optim.ffd.ffd import FFD_2D, FFD_POD_2D, RotationWrapper
+from aero_optim.ffd.ffd import FFD_2D, FFD_POD_2D, DLR_2D, DLR_POD_2D, RotationWrapper
 from aero_optim.mesh.mesh import MeshMusicaa
 from aero_optim.mesh.naca_base_mesh import NACABaseMesh
 from aero_optim.mesh.naca_block_mesh import NACABlockMesh
@@ -113,7 +113,10 @@ class Optimizer(ABC):
         self.maximize: bool = config["optim"].get("maximize", False)
         self.budget: int = config["optim"].get("budget", 4)
         self.nproc_per_sim: int = config["optim"].get("nproc_per_sim", 1)
-        self.bound: tuple[Any, ...] = tuple(config["optim"].get("bound", [-1, 1]))
+        if 'dlr' in self.config["study"]['ffd_type']:
+            self.bound = np.array(list(self.config["ffd"]['param_bounds'].values()))
+        else:
+            self.bound = np.array(config["optim"].get("bound", [-1, 1]))
         self.custom_doe: str = config["optim"].get("custom_doe", "")
         self.sampler_name: str = config["optim"].get("sampler_name", "lhs")
         self.ea_kwargs: dict = config["optim"].get("ea_kwargs", {})
@@ -139,6 +142,7 @@ class Optimizer(ABC):
         self.min: list[float] = []
         # set other inner optimization variables
         self.J: list[float | list[float]] = []
+        self.G: list[float | list[float]] = []
         self.inputs: list[list[np.ndarray]] = []
         self.ffd_profiles: list[list[np.ndarray]] = []
         self.QoI: str = self.config["optim"].get("QoI", "CD")
@@ -181,6 +185,18 @@ class Optimizer(ABC):
                 f"<GUI> entry in {self.config['gmsh']['view']} forced to False"
             )
             self.config["gmsh"]["view"]["GUI"] = False
+            
+        if 'dlr' in self.config["study"]['ffd_type']:
+            # print(self.config["study"]['ffd_type'])
+            # print(len(self.config["ffd"]['param_bounds']))
+            # print(self.config["optim"]['n_design'])
+            # assert(self.config["optim"]['n_design'] == len(self.config["ffd"]['param_bounds']))
+            if 'home_dir' not in self.config["ffd"]:
+                raise Exception(f"ERROR -- no <home_dir> entry in {self.config['ffd']}")
+            if 'bladegen_path' not in self.config["ffd"]:
+                raise Exception(f"ERROR -- no <bladegen_path> entry in {self.config['ffd']}")
+            if 'param_bounds' not in self.config["ffd"]:
+                raise Exception(f"ERROR -- no <param_bounds> entry in {self.config['ffd']}")
 
     def set_ffd_class(self):
         """
@@ -203,6 +219,20 @@ class Optimizer(ABC):
             elif self.ffd_type == FFD_TYPE[1]:
                 self.FFDClass = FFD_POD_2D
                 ffd_config["ffd_ncontrol"] = self.n_design
+                ffd_config["ffd_bound"] = self.bound
+                logger.info(f"ffd bound: {self.bound}")
+                self.ffd = self.FFDClass(self.dat_file, **ffd_config)
+                self.n_design = ffd_config["pod_ncontrol"]
+                self.bound = ffd_config.get("pod_bound", self.ffd.get_bound())
+                logger.info(f"pod bound: {self.bound}")
+            # standard FFD 2D
+            elif self.ffd_type == FFD_TYPE[2]:
+                self.FFDClass = DLR_2D
+                self.ffd = self.FFDClass(self.dat_file, **ffd_config)
+                
+            elif self.ffd_type == FFD_TYPE[3]:
+                self.FFDClass = DLR_POD_2D
+                ffd_config["ffd_ncontrol"] = len(ffd_config["param_bounds"])
                 ffd_config["ffd_bound"] = self.bound
                 logger.info(f"ffd bound: {self.bound}")
                 self.ffd = self.FFDClass(self.dat_file, **ffd_config)
@@ -388,6 +418,7 @@ class Optimizer(ABC):
             np.reshape(self.inputs, (-1, self.n_design))
         )
         np.savetxt(os.path.join(self.outdir, "fitnesses.txt"), self.J)
+        np.savetxt(os.path.join(self.outdir, "constraints.txt"), self.G)
 
     @abstractmethod
     def set_simulator_class(self):

@@ -248,11 +248,14 @@ def main():
 
     # get sampler and lf / hf DOEs
     print("MFSM: sampler selection..")
+    print(sm_config["optim"]["bound"])
     # FFD sampling
     mf_sampler = get_sampler(
         sm_config["optim"]["n_design"], sm_config["optim"]["bound"], seed, model.requires_nested_doe
     )
     x_lf, x_hf = mf_sampler.sample_mf(sm_config["optim"]["n_lf"], sm_config["optim"]["n_hf"])
+    print(x_lf.shape)
+    input()
     # if POD the reduced parameters corresponding to the FFD are reconstructed
     if args.pod:
         ffd_lf_doe_profiles = np.stack(

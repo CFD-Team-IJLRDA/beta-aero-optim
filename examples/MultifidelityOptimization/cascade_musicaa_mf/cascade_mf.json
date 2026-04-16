@@ -1,0 +1,59 @@
+{
+    "study": {
+        "study_type": "cascade",
+        "ffd_type": "ffd_pod_2d",
+        "file": "../cascade_wolf_base/ogv1c.dat",
+        "outdir": "output_mf_5",
+        "custom_file": "custom_cascade.py"
+    },
+    "optim": {
+        "seed": 123,
+        "n_design": 8,
+        "doe_size": 20,
+        "max_generations": 50,
+        "bound": [-0.1, 0.1],
+        "QoI": "MixedoutLossCoef",
+        "CoI": "OutflowAngle",
+        "bsl_hf_w_ADP": 0.0349,
+        "bsl_hf_w_OP": 0.0483,
+        "bsl_hf_a_ADP": 0.131,
+        "bsl_hf_a_OP1": 1.283,
+        "bsl_hf_a_OP2": -1.173,
+        "bsl_lf_w_ADP": 0.0749,
+        "bsl_lf_w_OP": 0.125,
+        "bsl_lf_a_ADP": 1.482,
+        "bsl_lf_a_OP1": 2.263,
+        "bsl_lf_a_OP2": 0.382,
+        "model_name": "mfsmt",
+        "n_lf": 45,
+        "n_hf": 1,
+        "infill_nb": 15,
+        "infill_lf_size": 10,
+        "infill_hf_size": 1,
+        "infill_nb_gen": 50,
+        "lf_config": "lf_config.json",
+        "hf_config": "hf_config.json",
+        "opt_candidates": "../cascade_musicaa_base/output_lf_opt/candidates.txt",
+        "hf_doe_dir": "../cascade_musicaa_base/output_lf_opt",
+        "lf_opt_gid": [39, 25, 32, 39],
+        "lf_opt_cid": [10, 18, 18, 3],
+        "constraint": true,
+        "angle_ADP": [-0.5, 0.5],
+        "angle_OP1": [-4, 4],
+        "angle_OP2": [-4, 4]
+    },
+    "ffd": {
+        "pod_ncontrol": 4,
+        "ffd_dataset_size": 1000,
+        "rotation": true,
+        "rot_bound": [-2, 2],
+        "scale": 1e-3
+    },
+    "gmsh": {},
+    "simulator": {
+        "model_loss_file": "output_mf/model_loss.pkl",
+        "model_angle_file": "output_mf/model_angle.pkl",
+        "exec_cmd": "",
+        "ref_input": ""
+    }
+}

@@ -5,3 +5,8 @@ matplotlib  # to visualize the generated deformed profiles (FFD)
 pandas      # to load simulation results (OPTIM)
 pymoo       # optimization toolbox (OPTIM)
 scipy       # to use quasi monte carlo samplers (FFD)
+Gpy
+emukit
+torch
+smt
+ipynbkernel

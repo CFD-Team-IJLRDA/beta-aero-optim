@@ -12,7 +12,7 @@ import time
 from types import FrameType
 
 STUDY_TYPE = ["naca_base", "naca_block", "cascade", "musicaa"]
-FFD_TYPE = ["ffd_2d", "ffd_pod_2d"]
+FFD_TYPE = ["ffd_2d", "ffd_pod_2d", "dlr_2d", "dlr_pod_2d",]
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +31,11 @@ def from_dat(file: str, header_len: int = 2, scale: float = 1) -> list[list[floa
     """
     dat_file = [line.strip() for line in open(file, "r").read().splitlines()]
     pts = [list(map(float, line.split(" "))) for line in dat_file[header_len:]]
+    # print(f'Before rounding from_dat first vs last vs check: {pts[0]} vs {pts[-1]}, {pts[0][1] == pts[-1][1]}')
+    if pts[0][1] == pts[-1][1]:
+        pts[-1][1] += 1e-14
+        # print('Adjusted last point y-coordinate to avoid duplication after rounding. Firs and last points are now ')
+        # print(f'After  rounding from_dat first vs last vs check: {pts[0]} vs {pts[-1]}, {pts[0][1] == pts[-1][1]}')
     pts = pts[:-1] if pts[0] == pts[-1] else pts
     pts = [[p[0], p[1], 0.] for p in pts] if len(pts[0]) == 2 else pts
     return pts if scale == 1 else [[coord * scale for coord in p] for p in pts]

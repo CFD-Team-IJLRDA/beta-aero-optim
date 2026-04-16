@@ -173,6 +173,7 @@ class WolfSimulator(Simulator):
             self.df_dict[dict_id["gid"]][dict_id["cid"]] = self.post_process(
                 dict_id, sim_outdir
             )
+            print(f"g{gid}, c{cid}: loaded pre-existing results from files")
             logger.info(f"g{gid}, c{cid}: loaded pre-existing results from files")
         except FileNotFoundError:
             # Pre-process

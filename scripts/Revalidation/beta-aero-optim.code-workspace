@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../../ForMattia_Alejandro"
+		},
+		{
+			"path": "../../../../OpenFOAM/mciarlatani-v2306"
+		}
+	],
+	"settings": {}
+}

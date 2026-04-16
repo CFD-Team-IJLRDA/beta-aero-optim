@@ -1,0 +1,88 @@
+{
+    "study": {
+        "study_type": "cascade",
+        "ffd_type": "dlr_pod_2d",
+        "file": "../RANS_bruteForceogv1c.dat",
+        "outdir": "@outdir",
+        "custom_file": "../RANS_bruteForce/custom_cascade_wolf.py"
+    },
+    "optim": {
+        "n_design": 13,
+        "doe_size": 30,
+        "max_generations": 50,
+        "bound": [-0.1, 0.1],
+        "QoI": "MixedoutLossCoef",
+        "CoI": "OutflowAngle",
+        "budget": 10,
+        "baseline_w_ADP": 0.0783,
+        "baseline_w_OP": 0.1489,
+        "angle_ADP": [-2.5, 2.5],
+        "angle_OP1": [-4.0, 4.0],
+        "angle_OP2": [-4.0, 4.0],
+        "constraint": true,
+        "custom_doe": "@candidates"
+    },
+    "ffd": {
+        "home_dir":"../RANS_bruteForcePOD_Dataset",
+        "bladegen_path":"/home/mciarlatani/bin/BladeGenerator.exe",
+        "param_bounds": {
+                "BetaLE":[118,129],
+                "BetaTE":[60,66],
+                "BetaST":[88,92],
+                "x2SS":[0.013,0.033],
+                "x3SS":[0.31,0.40],
+                "y3SS":[0.192,0.21],
+                "x4SS":[0.818,0.86],
+                "m2DS":[0.127,0.18],
+                "d2DS":[0.035,0.048],
+                "d3DS":[0.022,0.05],
+                "d4DS":[0.014,0.017],
+                "Dmax_approx":[0.8,1.0],
+                "rTE":[0.00495,0.0075]},
+        "pod_ncontrol": 5,
+        "ffd_dataset_size": 1000,
+        "rotation": false,
+        "rot_bound": [-2, 2],
+        "scale": 1000
+    },
+    "gmsh": {
+        "mesh": {
+            "DLR_mesh": true,
+            "scale": 1e-3,
+            "bl": true,
+            "bl_size": 5e-6,
+            "bl_ratio": 1.1,
+            "bl_thickness": 1.5e-3,
+            "nodes_inlet": 60,
+            "nodes_outlet": 70,
+            "side_nodes_inlet": 40,
+            "side_nodes_outlet": 90,
+            "curved_side_nodes": 30,
+            "le": 24,
+            "te": 24,
+            "nodes_ss": 150,
+            "nodes_ps": 150,
+            "cyl_vin": 4.0e-4,
+            "cyl_vout": 1.5e-3,
+            "cyl_xaxis": 2.675e-2,
+            "cyl_xcenter": 9.364e-2,
+            "structured": false
+        },
+        "view": {
+            "GUI": false,
+            "quality": false,
+            "nview": 1
+        }
+    },
+    "simulator": {
+        "ref_input": "../RANS_bruteForce/cascade_wolf_base.wolf",
+        "post_process": {
+            "residual.dat": ["ResTot"],
+            "turbocoef.dat": ["LossCoef"],
+            "MPLossCoef.dat": ["MPLossCoef"],
+            "MixedoutLossCoef.dat": ["MixedoutLossCoef"],
+            "OutflowAngle.dat": ["OutflowAngle"]
+        },
+        "exec_cmd": "python3 /home/mciarlatani/GPROfficial/beta-aero-optim/Optimization/RANS_bruteForce/execute.py -in @.mesh -nproc @nproc @resources"
+    }
+}

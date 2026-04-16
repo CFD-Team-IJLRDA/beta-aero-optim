@@ -1,0 +1,25 @@
+#!/bin/bash
+#MSUB -r ADP           # nom du job
+#MSUB -n 51             # Nombre de processeurs a allouer
+#MSUB -T 86400          # Limite de temps en sec
+#MSUB -o ADP.o%J     # Sortie standard
+#MSUB -e ADP.e%J     # Sortie d'erreurs
+#MSUB -A gen13457       # Project ID
+#MSUB -q rome           # Partition
+#MSUB -m scratch,work   # Filesystems
+#MSUB -E '--no-requeue' # pas de relance si un noeud plante
+
+cd $CCCSCRATCHDIR/beta-aero-optim/Irene/
+
+export F_UFMTENDIAN=big
+module switch dfldatadir/gen13457
+module load mpi/openmpi/4.1.4.2
+module load intel/20.0.0
+module load fftw3/3.3.8
+module load python3/3.12
+module load scalapack/mkl/20.0.4
+module load flavor/scalapack/standard
+export PYTHONPATH=$PYTHONPATH:$(realpath ../python_packages)
+
+source $CCCWORKDIR/beta-aero-optim/.venv/bin/activate
+python3 HF_main_mf_sm.py -c mf_adp.json

@@ -1,0 +1,89 @@
+{
+    "study": {
+        "custom_file": "../musicaa_RANSrerun/custom_cascade_musicaa.py",
+        "study_type": "musicaa",
+        "ffd_type": "dlr_pod_2d",
+        "file": "../RANS_bruteForce/ogv1c.dat",
+        "outdir": "@outdir"
+    },
+    "gmsh": {
+        "mesh_dir": "musicaa_mesh",
+        "mesh_name": "ogv1c",
+        "wall_bl": [3,4,7,6],
+        "periodic_bl": [6],
+        "pitch": 40.39,
+        "chord_length": 70.0,
+        "inlet_bl": [1,2],
+        "outlet_bl": [8,9]
+    },
+    "optim": {
+        "n_design": @n_design,
+        "doe_size": @doe_size,
+        "max_generations": 1,
+        "bound": [-0.1, 0.1],
+        "QoI": "MixedoutLossCoef",
+        "CoI": "OutflowAngle",
+        "budget": 1,
+        "constraint": true,
+        "baseline_w_ADP": 0.0349,
+        "baseline_w_OP": 0.0483,
+        "custom_doe": "@custom_doe"
+    },
+    "ffd": {
+        "home_dir":"../RANS_bruteForce/POD_Dataset",
+        "bladegen_path":"/home/mciarlatani/bin/BladeGenerator.exe",
+        "param_bounds": {
+                "BetaLE":[118,129],
+                "BetaTE":[60,66],
+                "BetaST":[88,92],
+                "x2SS":[0.013,0.033],
+                "x3SS":[0.31,0.40],
+                "y3SS":[0.192,0.21],
+                "x4SS":[0.818,0.86],
+                "m2DS":[0.127,0.18],
+                "d2DS":[0.035,0.048],
+                "d3DS":[0.022,0.05],
+                "d4DS":[0.014,0.017],
+                "Dmax_approx":[0.8,1.0],
+                "rTE":[0.00495,0.0075]},
+        "pod_ncontrol": 5,
+        "ffd_dataset_size": 1000,
+        "rotation": false,
+        "rot_bound": [-2, 2],
+        "scale": 1000
+    },
+    "simulator": {
+        "ref_input": "hf_config.json",
+        "cp_list": ["param.ini", "param_blocks.ini", "param_blocks.ini_3D", "param_rans.ini", "feos_air.ini"],
+        "preprocess_cmd" : "/home/mciarlatani/bin/musicaa",
+        "exec_cmd" : "python3 /home/mciarlatani/GPROfficial/beta-aero-optim/Optimization/musicaa_RANSrerun/execute.py -remote",
+        "restart_musicaa": 5,
+        "divide_CFL_by": 1.3,
+
+        "convergence_criteria": {
+            "residual_convergence_order": 0.2,
+            "niter_stats_steady": 1000,
+            "Boudet_criterion_type": "original",
+            "monitored_variables": 3,
+            "nb_ftt_before_criterion": 10,
+            "only_compute_mean_crit": true,
+            "unsteady_convergence_percent_mean": 5,
+            "unsteady_convergence_percent_rms": 10,
+            "QoIs_convergence_order": 2.5,
+            "max_niter_steady": 100000,
+            "max_niter_init_2D": 50000,
+            "max_niter_init_3D": 50000,
+            "max_niter_stats": 100000
+        },
+        "post_process": {
+            "measurement_lines": {
+                "inlet_x1": -20.108296,
+                "inlet_x2": -20.108296,
+                "outlet_x1":  87.25188,
+                "outlet_x2":  87.25188
+            },
+            "outputs": ["MixedoutLossCoef", "OutflowAngle"],
+            "file": "QoI_convergence.csv"
+        }
+    }
+}

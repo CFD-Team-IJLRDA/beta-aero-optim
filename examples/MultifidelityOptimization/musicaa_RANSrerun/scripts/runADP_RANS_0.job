@@ -1,0 +1,25 @@
+#!/bin/bash
+#MSUB -r ADP_0_RANS          # nom du job
+#MSUB -n 2         # Nombre de processeurs a allouer
+#MSUB -T 3600          # Limite de temps en sec
+#MSUB -o RR.o%J     # Sortie standard
+#MSUB -e RR.e%J     # Sortie d'erreurs
+#MSUB -A gen13457       # Project ID
+#MSUB -q rome           # Partition
+#MSUB -m scratch,work   # Filesystems
+
+cd $CCCSCRATCHDIR/beta-aero-optim/Irene/musicaa_RANSrerun/
+
+export F_UFMTENDIAN=big
+module switch dfldatadir/gen13457
+module load mpi/openmpi/4.1.4.2
+module load intel/20.0.0
+module load fftw3/3.3.8
+module load python3/3.12
+module load scalapack/mkl/20.0.4
+module load flavor/scalapack/standard
+export PYTHONPATH=$PYTHONPATH:$(realpath ../python_packages)
+
+source $CCCWORKDIR/beta-aero-optim/.venv/bin/activate
+
+optim -c ADP_RANS_0.json

@@ -1,0 +1,37 @@
+{
+    "study": {
+        "study_type": "cascade",
+        "ffd_type": "ffd_pod_2d",
+        "file": "../cascade_wolf_base/ogv1c.dat",
+        "outdir": "output_sf_nsgaii",
+        "custom_file": "custom_cascade.py"
+    },
+    "optim": {
+        "seed": 123,
+        "n_design": 8,
+        "doe_size": 20,
+        "max_generations": 50,
+        "bound": [-0.1, 0.1],
+        "QoI": "MixedoutLossCoef",
+        "CoI": "OutflowAngle",
+        "model_name": "smt",
+        "infill_nb_gen": 50,
+        "hf_candidates": "output_mf/hf_candidates.txt",
+        "hf_fitnesses": "output_mf/hf_fitnesses.txt",
+        "constraint": false
+    },
+    "ffd": {
+        "pod_ncontrol": 4,
+        "ffd_dataset_size": 1000,
+        "rotation": true,
+        "rot_bound": [-2, 2],
+        "scale": 1e-3
+    },
+    "gmsh": {},
+    "simulator": {
+        "model_loss_file": "output_sf_nsgaii/model_loss.pkl",
+        "model_angle_file": "output_mf/model_angle.pkl",
+        "exec_cmd": "",
+        "ref_input": ""
+    }
+}
