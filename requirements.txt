@@ -9,4 +9,4 @@ Gpy
 emukit
 torch
 smt
-ipynbkernel
+ipykernel
