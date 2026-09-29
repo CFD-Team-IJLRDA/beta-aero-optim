@@ -19,7 +19,10 @@ classifiers = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["aero_optim"]
+include = ["aero_optim*"]
+
+[tool.setuptools.package-data]
+"aero_optim.mesh" = ["templates/*.geo"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
