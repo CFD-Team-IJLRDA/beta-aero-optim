@@ -82,13 +82,30 @@ def load_or_build_pod(config: dict, outdir: str, baseline: np.ndarray) -> BladeG
 
 
 def doe_samples(config: dict, outdir: str, pod: BladeGenPOD) -> pd.DataFrame:
+    """**Returns** the DoE samples: POD coefficients c1..cN, plus the BladeGen parameters of each
+    blade when config["doe"]["sampling"] is "bladegen".
+
+    - "pod_box" (default): Latin hypercube over the box of the training coefficients. Its corners
+      lie outside the BladeGen cloud, so many blades there are not BladeGen blades.
+    - "bladegen": the POD training blades themselves (a Latin hypercube over the BladeGen
+      parameter bounds), each meshed as its N-mode reconstruction.
+    """
     path = os.path.join(outdir, "doe_samples.csv")
     if os.path.isfile(path):
         return pd.read_csv(path, index_col=0)
     doe = config["doe"]
-    unit = qmc.LatinHypercube(d=pod.n_modes, seed=doe.get("seed", 1)).random(doe.get("n_samples", 1000))
-    coeffs = qmc.scale(unit, pod.bounds[:, 0], pod.bounds[:, 1])
-    df = pd.DataFrame(coeffs, columns=[f"c{k + 1}" for k in range(pod.n_modes)]).rename_axis("sample")
+    columns = [f"c{k + 1}" for k in range(pod.n_modes)]
+    if doe.get("sampling", "pod_box") == "bladegen":
+        ds = np.load(os.path.join(outdir, "pod", "dataset.npz"))
+        ok = ~ds["failed"] & np.all(np.isfinite(ds["D"]), axis=1)
+        coeffs = np.array([pod.project(d) for d in ds["D"][ok]])
+        df = pd.DataFrame(ds["params"][ok], columns=ds["keys"], index=np.flatnonzero(ok))
+        df[columns] = coeffs
+        df = df.iloc[:doe.get("n_samples", len(df))]
+    else:
+        unit = qmc.LatinHypercube(d=pod.n_modes, seed=doe.get("seed", 1)).random(doe.get("n_samples", 1000))
+        df = pd.DataFrame(qmc.scale(unit, pod.bounds[:, 0], pod.bounds[:, 1]), columns=columns)
+    df = df.rename_axis("sample")
     df.to_csv(path)
     return df
 
@@ -123,8 +140,10 @@ def run(config: dict, pilot: int | None = None):
     profile_dir, mesh_dir = os.path.join(outdir, "profiles"), os.path.join(outdir, "MESH")
     os.makedirs(profile_dir, exist_ok=True)
 
-    blades = [("baseline", BASELINE_GID, 0, baseline, pod.project(np.zeros_like(baseline)))]
-    blades += [(f"{i:04d}", DOE_GID, int(i), pod.reconstruct(c), c.to_numpy()) for i, c in samples.iterrows()]
+    coeff_cols = [f"c{k + 1}" for k in range(pod.n_modes)]
+    blades = [("baseline", BASELINE_GID, 0, baseline, dict(zip(coeff_cols, pod.project(np.zeros_like(baseline)))))]
+    blades += [(f"{i:04d}", DOE_GID, int(i), pod.reconstruct(s[coeff_cols].to_numpy()), s.to_dict())
+               for i, s in samples.iterrows()]
     status = {}
     try:
         for name, gid, cid, profile, _ in blades:
@@ -153,9 +172,9 @@ def run(config: dict, pilot: int | None = None):
         raise
 
     rows = []
-    for name, gid, cid, _, coeffs in blades:
+    for name, gid, cid, _, inputs in blades:
         row = {"blade": name, "status": status.get((gid, cid), "ok")}
-        row.update({f"c{k + 1}": v for k, v in enumerate(coeffs)})
+        row.update(inputs)
         if row["status"] == "ok":
             row.update(results_row(sim.df_dict[gid][cid]))
         rows.append(row)

@@ -1,7 +1,7 @@
 {
     "study": {
         "file": "baseline_322.dat",
-        "outdir": "/mnt/Data_B/beta-aero-optim-runs/doe1000"
+        "outdir": "/mnt/Data_B/beta-aero-optim-runs/doe1000_bladegen"
     },
     "mesh": {
         "header": 2,
@@ -46,6 +46,7 @@
         "n_jobs": 32
     },
     "doe": {
+        "sampling": "bladegen",
         "n_samples": 1000,
         "seed": 1,
         "budget": 96
