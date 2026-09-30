@@ -1,0 +1,42 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      turbulenceProperties;
+}
+
+simulationType  RAS;
+
+RAS
+{
+    RASModel        kOmegaSSTLM;
+    turbulence      on;
+    printCoeffs     on;
+
+    // As in Alejandro's validated reference cases (note: cThetat 1000 instead of the default 0.03).
+    kOmegaSSTLMCoeffs
+    {
+        alphaK1         0.85;
+        alphaK2         1;
+        alphaOmega1     0.5;
+        alphaOmega2     0.856;
+        beta1           0.075;
+        beta2           0.0828;
+        betaStar        0.09;
+        gamma2          0.44;
+        a1              0.31;
+        b1              1;
+        c1              10;
+        F3              false;
+        ca1             2;
+        ca2             0.06;
+        ce1             1;
+        ce2             50;
+        cThetat         1000;
+        sigmaThetat     2;
+        lambdaErr       1e-6;
+        maxLambdaIter   30;
+        omegaInf        1e-8;
+    }
+}

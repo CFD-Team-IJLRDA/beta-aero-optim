@@ -40,16 +40,19 @@ def _patch_boundary_file(boundary_file: str, patch_types: dict[str, dict[str, st
         f.write(content)
 
 
-def convert_to_foam(msh_file: str, case_dir: str, patch_types: dict[str, dict[str, str]]) -> None:
+def convert_to_foam(
+        msh_file: str, case_dir: str, patch_types: dict[str, dict[str, str]], init_fields: bool = True
+) -> None:
     """
     **Converts** a gmsh `.msh` (v2 ASCII) mesh into the OpenFOAM case at case_dir, patches
-    the resulting boundary file per patch_types, validates it with checkMesh, and
-    (re)initializes `0/` from `0.org/` with cell-centre fields.
+    the resulting boundary file per patch_types, validates it with checkMesh, and, if
+    init_fields, (re)initializes `0/` from `0.org/` with cell-centre fields.
 
     - msh_file (str): path to the gmsh `.msh` (v2 ASCII) mesh, e.g. as written by
       `foam_cascade_mesh.build_mesh()`.
     - case_dir (str): path to an OpenFOAM case directory that already contains `system/`,
-      `constant/` (without `constant/polyMesh`, which this function creates) and `0.org/`.
+      `constant/` (without `constant/polyMesh`, which this function creates) and, if
+      init_fields, `0.org/`.
     - patch_types (dict): patch name -> OpenFOAM boundary entry overrides, e.g. as returned
       by `foam_cascade_mesh.cascade_mattia_patch_types()`.
     """
@@ -69,6 +72,10 @@ def convert_to_foam(msh_file: str, case_dir: str, patch_types: dict[str, dict[st
     result = subprocess.run(["checkMesh"], cwd=case_dir, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"checkMesh failed in {case_dir}:\n{result.stdout}\n{result.stderr}")
+    with open(os.path.join(case_dir, "log.checkMesh"), "w") as f:
+        f.write(result.stdout)
+    if not init_fields:
+        return
 
     zero_dir = os.path.join(case_dir, "0")
     org_dir = os.path.join(case_dir, "0.org")

@@ -1,0 +1,26 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      alphat;
+}
+
+dimensions      [1 -1 -1 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    front   { type empty; }
+    back    { type empty; }
+    top     { type cyclicAMI; value $internalField; }
+    bottom  { type cyclicAMI; value $internalField; }
+    inlet   { type calculated; value $internalField; }
+    outlet  { type calculated; value $internalField; }
+    airfoil
+    {
+        type            compressible::alphatWallFunction;
+        value           $internalField;
+    }
+}

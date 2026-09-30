@@ -1,0 +1,28 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+
+#include "include/operatingPoint"
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform $Uinlet;
+
+boundaryField
+{
+    front   { type empty; }
+    back    { type empty; }
+    top     { type cyclicAMI; }
+    bottom  { type cyclicAMI; }
+    inlet
+    {
+        type            freestreamVelocity;
+        freestreamValue uniform $Uinlet;
+    }
+    outlet  { type zeroGradient; }
+    airfoil { type noSlip; }
+}

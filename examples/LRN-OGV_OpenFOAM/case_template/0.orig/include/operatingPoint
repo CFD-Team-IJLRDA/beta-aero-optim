@@ -1,0 +1,4 @@
+// Operating point (overwritten per operating point by OpenFOAMSimulator). Default: ADP, 43 deg inflow.
+Uinlet      (145.514 135.695 0);
+pOutlet     16435;
+Tinlet      272.95;

@@ -1,0 +1,62 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+
+solvers
+{
+    p
+    {
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       1e-11;
+        relTol          0.001;
+    }
+    "(U|k|omega|e)"
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-11;
+        relTol          0.001;
+    }
+    "(gammaInt|ReThetat)"
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-11;
+        relTol          0.001;
+        maxIter         10;
+    }
+}
+
+SIMPLE
+{
+    // effectively never reached: runs stop at endTime
+    residualControl
+    {
+        p               1e-15;
+        U               1e-12;
+        "(k|omega|e)"   1e-12;
+    }
+    nNonOrthogonalCorrectors 0;
+    pMinFactor      0.1;
+    pMaxFactor      2;
+}
+
+relaxationFactors
+{
+    fields
+    {
+        p               0.3;
+        rho             0.02;
+    }
+    equations
+    {
+        U               0.5;
+        e               0.5;
+        "(k|omega)"     0.5;
+    }
+}

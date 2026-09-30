@@ -1,0 +1,34 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      T;
+}
+
+#include "include/operatingPoint"
+
+dimensions      [0 0 0 1 0 0 0];
+
+internalField   uniform $Tinlet;
+
+boundaryField
+{
+    front   { type empty; }
+    back    { type empty; }
+    top     { type cyclicAMI; value $internalField; }
+    bottom  { type cyclicAMI; value $internalField; }
+    inlet
+    {
+        type            inletOutlet;
+        inletValue      uniform $Tinlet;
+        value           uniform $Tinlet;
+    }
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      uniform $Tinlet;
+        value           uniform $Tinlet;
+    }
+    airfoil { type zeroGradient; }
+}

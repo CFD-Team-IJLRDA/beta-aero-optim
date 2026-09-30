@@ -1,0 +1,69 @@
+		Eingabedatei
+
+DIM = 2
+SideNoPoints    100
+EdgeNoPoints    20
+RadialNoPoints  1
+MIRROR          0
+
+
+Param	      Memb0
+
+startDS	    5
+startSS	    5
+nDeB_SS	    5
+nDeB_DS	    5
+
+BetaST	    90
+BetaLE	    121.672721
+dBetaLE	    18.304097
+dBetaLE_DS  -1.0
+BetaTE	    64.039373
+dBetaTE	    3.24013
+dBetaTE_DS  -1.0
+rLE	        0.007589197
+AtoBLE	    1.00056859201
+AsymLE	    0.002183
+AtoBTE	    1.11121078103
+rTE	        0.00768
+cax	        0.07
+xshift	    0.0
+yshift	    0.0
+ReStag2	    16.044319
+LE_fact	    -0.025623
+
+DeBoDS(<=9, >=5)
+x2DS		-1.0
+x3DS		-1.0
+y3DS		-1.0
+x4DS		-1.0
+y4DS		-1.0
+x5DS		-1.0
+y5DS		-1.0
+x6DS		-1.0
+y6DS		-1.0
+x7DS		-1.0
+y7DS		-1.0
+x8DS		-1.0
+
+DeBoSS(<=9, >=5)
+x2SS		0.032
+x3SS		0.332
+y3SS		0.197
+x4SS		0.853
+y4SS		-1.0
+x5SS		-1.0
+y5SS		-1.0
+x6SS		-1.0
+y6SS		-1.0
+x7SS		-1.0
+y7SS		-1.0
+x8SS		-1.0
+
+Dmax_approx 1.0
+m2DS        0.179
+d2DS        0.0455
+m3DS        0.494497359
+d3DS        0.050
+m4DS        0.879263499
+d4DS        0.0153

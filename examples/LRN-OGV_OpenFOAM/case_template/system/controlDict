@@ -1,0 +1,65 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+
+#include "include/runControl"
+
+application     rhoSimpleFoam;
+startFrom       latestTime;
+startTime       0;
+stopAt          endTime;
+deltaT          1;
+writeControl    timeStep;
+writeInterval   1000;
+purgeWrite      1;
+writeFormat     ascii;
+writePrecision  8;
+writeCompression off;
+timeFormat      general;
+timePrecision   6;
+runTimeModifiable false;
+
+functions
+{
+    #includeFunc MachNo
+    #includeFunc solverInfo
+
+    // Measurement planes 20 mm upstream of the LE (MP1) and downstream of the TE (MP2),
+    // each exactly one pitch (0.04039 m) between the periodic boundaries, at mid-span.
+    MP
+    {
+        type                sets;
+        libs                (sampling);
+        setFormat           csv;
+        interpolationScheme cellPoint;
+        fields              (p T U rho);
+        timeStart           $sampleStart;
+        executeControl      timeStep;
+        executeInterval     $sampleInterval;
+        writeControl        timeStep;
+        writeInterval       $sampleInterval;
+        sets
+        {
+            MP1
+            {
+                type    uniform;
+                axis    xyz;
+                start   (-0.02 -0.0285704 0.005);
+                end     (-0.02  0.0118176 0.005);
+                nPoints 1001;
+            }
+            MP2
+            {
+                type    uniform;
+                axis    xyz;
+                start   (0.087 0.000001 0.005);
+                end     (0.087 0.040389 0.005);
+                nPoints 1001;
+            }
+        }
+    }
+}

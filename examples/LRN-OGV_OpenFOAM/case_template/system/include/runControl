@@ -1,0 +1,4 @@
+// Run control (overwritten by OpenFOAMSimulator from the config).
+endTime         6000;
+sampleStart     4000;   // MP1/MP2 are sampled from this iteration on ...
+sampleInterval  1;      // ... every sampleInterval iterations

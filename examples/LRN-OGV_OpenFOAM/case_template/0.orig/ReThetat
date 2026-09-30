@@ -1,0 +1,22 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      ReThetat;
+}
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 1000;
+
+boundaryField
+{
+    front   { type empty; }
+    back    { type empty; }
+    top     { type cyclicAMI; value $internalField; }
+    bottom  { type cyclicAMI; value $internalField; }
+    inlet   { type fixedValue; value $internalField; }
+    outlet  { type zeroGradient; }
+    airfoil { type zeroGradient; }
+}

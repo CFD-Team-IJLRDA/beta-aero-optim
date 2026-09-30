@@ -1,0 +1,36 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      k;
+}
+
+dimensions      [0 2 -2 0 0 0 0];
+
+internalField   uniform 1.4925;
+
+boundaryField
+{
+    front   { type empty; }
+    back    { type empty; }
+    top     { type cyclicAMI; value $internalField; }
+    bottom  { type cyclicAMI; value $internalField; }
+    inlet
+    {
+        type            inletOutlet;
+        inletValue      $internalField;
+        value           $internalField;
+    }
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      $internalField;
+        value           $internalField;
+    }
+    airfoil
+    {
+        type            kqRWallFunction;
+        value           $internalField;
+    }
+}
