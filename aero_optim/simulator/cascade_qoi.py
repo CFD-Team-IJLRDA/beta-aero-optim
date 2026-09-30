@@ -114,6 +114,28 @@ def qoi_history(sets_dir: str) -> pd.DataFrame:
     return pd.DataFrame.from_dict(rows, orient="index").sort_index().rename_axis("iteration")
 
 
+def run_quality(history: pd.DataFrame, max_rel_std: float = 5., max_drift: float = 1.) -> dict:
+    """
+    **Returns** whether the time-averaged loss of one run is usable: it must be positive, its
+    oscillation (std / mean) below max_rel_std % and the drift of its mean between the two halves
+    of the sampling window below max_drift %. Keys: rel_std_%, drift_%, reason ("" if usable).
+    """
+    w = history["MixedoutLossCoef"]
+    split = (w.index[0] + w.index[-1] + 1) // 2
+    mean = w.mean()
+    rel_std = 100 * w.std(ddof=0) / abs(mean)
+    drift = 100 * abs(w[w.index >= split].mean() - w[w.index < split].mean()) / abs(mean)
+    if not mean > 0:
+        reason = "non-positive loss"
+    elif rel_std >= max_rel_std:
+        reason = f"loss oscillation {rel_std:.1f}% >= {max_rel_std}%"
+    elif drift >= max_drift:
+        reason = f"loss drift {drift:.2f}% >= {max_drift}%"
+    else:
+        reason = ""
+    return {"rel_std_%": rel_std, "drift_%": drift, "reason": reason}
+
+
 def summarize(history: pd.DataFrame) -> dict[str, float]:
     """
     **Returns** mean, standard deviation and variance of each QoI over the sampled iterations.

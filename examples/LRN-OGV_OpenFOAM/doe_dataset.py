@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-from aero_optim.simulator.cascade_qoi import GAMMA, mixedout_state  # noqa: E402
+from aero_optim.simulator.cascade_qoi import GAMMA, mixedout_state, run_quality  # noqa: E402
 
 # a run is "good" if its time-averaged loss is positive, oscillates by less than MAX_REL_STD and
 # its mean moves by less than MAX_DRIFT between the two halves of the averaging window
@@ -42,22 +42,6 @@ functions
     }
 }
 """
-
-
-def run_quality(history: pd.DataFrame, split: int) -> dict:
-    w = history.MixedoutLossCoef
-    mean = w.mean()
-    rel_std = 100 * w.std(ddof=0) / abs(mean)
-    drift = 100 * abs(w[w.index >= split].mean() - w[w.index < split].mean()) / abs(mean)
-    if not mean > 0:
-        reason = "non-positive loss"
-    elif rel_std >= MAX_REL_STD:
-        reason = f"loss oscillation {rel_std:.1f}% >= {MAX_REL_STD}%"
-    elif drift >= MAX_DRIFT:
-        reason = f"loss drift {drift:.2f}% >= {MAX_DRIFT}%"
-    else:
-        reason = ""
-    return {"rel_std_%": rel_std, "drift_%": drift, "reason": reason}
 
 
 def mp1_mach(case: str, time: int, dict_path: str) -> float:
@@ -121,7 +105,6 @@ def main():
     config = json.load(open(config_path))
     outdir, sim = args.outdir or config["study"]["outdir"], config["simulator"]
     ops = list(sim["operating_points"])
-    split = (sim["sample_start"] + sim["end_time"] + 1) // 2
     dsdir = os.path.join(outdir, "dataset")
     os.makedirs(dsdir, exist_ok=True)
     dict_path = os.path.join(dsdir, "mp1Dict")
@@ -153,7 +136,7 @@ def main():
             if row[f"{op}_status"] != "ok" or not os.path.isfile(hist_file):
                 reasons.append(f"{op}: run failed")
                 continue
-            q = run_quality(pd.read_csv(hist_file, index_col=0), split)
+            q = run_quality(pd.read_csv(hist_file, index_col=0), MAX_REL_STD, MAX_DRIFT)
             out[f"{op}_rel_std_%"], out[f"{op}_drift_%"] = q["rel_std_%"], q["drift_%"]
             if q["reason"]:
                 reasons.append(f"{op}: {q['reason']}")

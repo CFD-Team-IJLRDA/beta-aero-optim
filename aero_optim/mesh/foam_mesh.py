@@ -74,6 +74,10 @@ def convert_to_foam(
         raise RuntimeError(f"checkMesh failed in {case_dir}:\n{result.stdout}\n{result.stderr}")
     with open(os.path.join(case_dir, "log.checkMesh"), "w") as f:
         f.write(result.stdout)
+    failed = re.search(r"Failed (\d+) mesh checks", result.stdout)
+    if failed:
+        # e.g. gmsh could not recover a surface edge and left unassigned faces (defaultFaces)
+        raise RuntimeError(f"checkMesh: {failed.group(0)} in {case_dir}, see log.checkMesh")
     if not init_fields:
         return
 

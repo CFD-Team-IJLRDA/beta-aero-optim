@@ -1,6 +1,6 @@
 import numpy as np
 
-from aero_optim.main.doe import self_intersects
+from aero_optim.geom import self_intersects
 from aero_optim.shape.bladegen_pod import BladeGenPOD, arclength_resample
 
 

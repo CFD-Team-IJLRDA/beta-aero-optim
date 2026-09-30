@@ -182,6 +182,62 @@ def get_radius_violation(pts: np.ndarray, origin: np.ndarray, d: float) -> float
     return np.min(d - pts_dist)
 
 
+def self_intersects(profile: np.ndarray) -> bool:
+    """**Returns** True if the closed polygon through profile's points crosses itself."""
+    p = profile[:, :2]
+    q = np.roll(p, -1, axis=0)
+    n = len(p)
+
+    def orient(a, b, c):
+        return np.sign((b[..., 0] - a[..., 0]) * (c[..., 1] - a[..., 1])
+                       - (b[..., 1] - a[..., 1]) * (c[..., 0] - a[..., 0]))
+
+    i, j = np.triu_indices(n, k=2)
+    keep = ~((i == 0) & (j == n - 1))  # first and last segments share a point
+    i, j = i[keep], j[keep]
+    d1 = orient(p[i], q[i], p[j])
+    d2 = orient(p[i], q[i], q[j])
+    d3 = orient(p[j], q[j], p[i])
+    d4 = orient(p[j], q[j], q[i])
+    return bool(np.any((d1 * d2 < 0) & (d3 * d4 < 0)))
+
+
+def distance_to_polygon(point: np.ndarray, pts: np.ndarray) -> float:
+    """**Returns** the distance from point to the closed polygon through pts (its edges, not only its vertices)."""
+    a = pts[:, :2]
+    ab = np.roll(a, -1, axis=0) - a
+    t = np.clip(np.einsum("ij,ij->i", point - a, ab) / np.einsum("ij,ij->i", ab, ab), 0., 1.)
+    return float(np.min(np.linalg.norm(a + t[:, None] * ab - point, axis=1)))
+
+
+def le_radius_violation(pts: np.ndarray, r: float, max_offset: float = 1.4) -> float:
+    """
+    **Returns** the leading-edge radius constraint value: negative if a circle of radius r
+    fits inside the profile with its centre on the leading-edge bisector, at most max_offset * r
+    from the leading edge (the leading edge is not sharper than r), positive otherwise.
+
+    The leading edge is the point farthest from the trailing edge (the right-most point), and
+    the bisector points from it to the mid-point of the two surface points 2r away along the contour.
+    """
+    p = pts[:, :2]
+    te = int(np.argmax(p[:, 0]))
+    le = int(np.argmax(np.linalg.norm(p - p[te], axis=1)))
+    n = len(p)
+    seg = np.linalg.norm(np.diff(p, axis=0, append=p[:1]), axis=1)
+    ahead, behind, k_a, k_b = 0., 0., le, le
+    while ahead < 2 * r:
+        ahead += seg[k_a % n]
+        k_a += 1
+    while behind < 2 * r:
+        k_b -= 1
+        behind += seg[k_b % n]
+    direction = 0.5 * (p[k_a % n] + p[k_b % n]) - p[le]
+    direction /= np.linalg.norm(direction)
+    best = max(distance_to_polygon(p[le] + d * direction, p)
+               for d in np.linspace(r, max_offset * r, 9))
+    return float(r - best)
+
+
 # Plotting functions
 # for visual assessment and debugging purposes
 def plot_profile(pts: np.ndarray, cog: np.ndarray = np.array([]), figname: str = ""):

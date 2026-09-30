@@ -15,33 +15,14 @@ import numpy as np
 import pandas as pd
 from scipy.stats import qmc
 
-from aero_optim.mesh.foam_cascade_mesh import CascadeTemplateMesh
+from aero_optim.geom import self_intersects
 from aero_optim.shape.bladegen_pod import BladeGenPOD, build_dataset
+from aero_optim.simulator.cascade_batch import run_blades
 from aero_optim.simulator.openfoam import OpenFOAMSimulator
 from aero_optim.utils import from_dat
 
 logger = logging.getLogger("doe")
 DOE_GID, BASELINE_GID = 0, 1
-
-
-def self_intersects(profile: np.ndarray) -> bool:
-    """**Returns** True if the closed polygon through profile's points crosses itself."""
-    p = profile
-    q = np.roll(profile, -1, axis=0)
-    n = len(p)
-
-    def orient(a, b, c):
-        return np.sign((b[..., 0] - a[..., 0]) * (c[..., 1] - a[..., 1])
-                       - (b[..., 1] - a[..., 1]) * (c[..., 0] - a[..., 0]))
-
-    i, j = np.triu_indices(n, k=2)
-    keep = ~((i == 0) & (j == n - 1))  # first and last segments share a point
-    i, j = i[keep], j[keep]
-    d1 = orient(p[i], q[i], p[j])
-    d2 = orient(p[i], q[i], q[j])
-    d3 = orient(p[j], q[j], p[i])
-    d4 = orient(p[j], q[j], q[i])
-    return bool(np.any((d1 * d2 < 0) & (d3 * d4 < 0)))
 
 
 def load_or_build_pod(config: dict, outdir: str, baseline: np.ndarray) -> BladeGenPOD:
@@ -136,44 +117,15 @@ def run(config: dict, pilot: int | None = None):
     budget = config["doe"].get("budget", 96)
 
     sim = OpenFOAMSimulator(config)
-    n_ops = len(sim.ops)
-    profile_dir, mesh_dir = os.path.join(outdir, "profiles"), os.path.join(outdir, "MESH")
-    os.makedirs(profile_dir, exist_ok=True)
-
     coeff_cols = [f"c{k + 1}" for k in range(pod.n_modes)]
     blades = [("baseline", BASELINE_GID, 0, baseline, dict(zip(coeff_cols, pod.project(np.zeros_like(baseline)))))]
     blades += [(f"{i:04d}", DOE_GID, int(i), pod.reconstruct(s[coeff_cols].to_numpy()), s.to_dict())
                for i, s in samples.iterrows()]
-    status = {}
-    try:
-        for name, gid, cid, profile, _ in blades:
-            if self_intersects(profile):
-                status[(gid, cid)] = "invalid_geometry"
-                logger.warning(f"blade {name}: self-intersecting profile, skipped")
-                continue
-            dat = os.path.join(profile_dir, f"blade_{name}.dat")
-            np.savetxt(dat, profile, header=f"blade {name}\nx y [m]")
-            mesher = CascadeTemplateMesh(config, dat)
-            try:
-                meshfile = mesher.get_meshfile(mesh_dir)
-                if not os.path.isfile(meshfile):
-                    meshfile = mesher.write_mesh(mesh_dir)
-            except Exception as e:
-                status[(gid, cid)] = "mesh_failed"
-                logger.error(f"blade {name}: meshing failed: {e}")
-                continue
-            while sim.monitor_sim_progress() + n_ops > budget:
-                time.sleep(2)
-            sim.execute_sim(meshfile, gid, cid)
-        while sim.monitor_sim_progress() > 0:
-            time.sleep(5)
-    except KeyboardInterrupt:
-        sim.kill_all()
-        raise
+    status = run_blades(config, sim, [b[:4] for b in blades], outdir, budget)
 
     rows = []
     for name, gid, cid, _, inputs in blades:
-        row = {"blade": name, "status": status.get((gid, cid), "ok")}
+        row = {"blade": name, "status": status[(gid, cid)]}
         row.update(inputs)
         if row["status"] == "ok":
             row.update(results_row(sim.df_dict[gid][cid]))

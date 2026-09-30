@@ -50,5 +50,20 @@
         "n_samples": 1000,
         "seed": 1,
         "budget": 96
+    },
+    "optim": {
+        "outdir": "/mnt/Data_B/beta-aero-optim-runs/optim_nsga2",
+        "pod_dir": "/mnt/Data_B/beta-aero-optim-runs/doe1000_bladegen/pod",
+        "init_doe": "/mnt/Data_B/beta-aero-optim-runs/doe1000_bladegen",
+        "pop_size": 32,
+        "n_gen": 30,
+        "seed": 1,
+        "budget": 96,
+        "angle_tol": {"ADP": 0.8, "OP1": 1.5, "OP2": 1.5},
+        "geom_tol": {"t_max/c": 0.3, "x_tmax/c_ax": 0.2, "A/c2": 0.2, "x_cg/c_ax": 0.2},
+        "r_le_min": 0.005,
+        "cloud_quantile": 95,
+        "max_rel_std": 5,
+        "max_drift": 1
     }
 }
