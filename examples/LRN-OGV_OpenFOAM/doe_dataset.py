@@ -88,6 +88,8 @@ def columns_doc(ops: list[str], params: list[str], n_modes: int) -> dict:
             f"{op}_Ma1": f"{op}: mixed-out Mach number at MP1, last iteration [-]",
             f"{op}_rel_std_%": f"{op}: {op}_w_std / {op}_w [%]",
             f"{op}_drift_%": f"{op}: |mean loss second half - first half of the window| / mean [%]",
+            f"{op}_window": f"{op}: iterations averaged over (later than the default for rescued runs, "
+                            "see dataset.json)",
         })
     doc["L_ADP"] = "objective 1: ADP_w"
     doc["L_OP"] = "objective 2: (OP1_w + OP2_w) / 2"
@@ -141,7 +143,8 @@ def main():
             if q["reason"]:
                 reasons.append(f"{op}: {q['reason']}")
             else:
-                out[f"{op}_Ma1"] = mp1_mach(case, sim["end_time"], dict_path)
+                last = max(int(d) for d in os.listdir(case) if d.isdigit())
+                out[f"{op}_Ma1"] = mp1_mach(case, last, dict_path)
         out["reason"] = "; ".join(reasons)
         return out
 
@@ -196,6 +199,9 @@ def main():
             "operating_points": sim["operating_points"],
             "iterations": sim["end_time"],
             "averaging_window": [sim["sample_start"], sim["end_time"]],
+            "rescued_runs": "runs rejected after the default window were continued (doe_rescue.py) and "
+                            "re-averaged over a later window of the same length, given in <OP>_window; "
+                            "those still failing the criterion were rejected",
             "measurement_planes": {"MP1": "x = -0.020 m, one pitch", "MP2": "x = 0.087 m, one pitch"},
         },
         "quality_criterion": {
