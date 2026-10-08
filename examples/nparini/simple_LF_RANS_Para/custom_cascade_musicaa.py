@@ -17,11 +17,8 @@ from aero_optim.utils import (custom_input, find_closest_index, check_dir,
 
 from typing import Callable
 
-sys.path.insert(0, "/home/nparini/beta-aero-optim/examples/MultifidelityOptimization")
-from cascade_adap.custom_cascade import CustomEvolution as WolfCustomEvolution # noqa
-from cascade_adap.custom_cascade import CustomOptimizer as WolfCustomOptimizer # noqa
-# from RANS_bruteForce.custom_cascade_wolf import CustomEvolution as WolfCustomEvolution # noqa
-# from RANS_bruteForce.custom_cascade_wolf import CustomOptimizer as WolfCustomOptimizer # noqa
+from custom_optimizer import CustomEvolution as WolfCustomEvolution # noqa
+from custom_optimizer import CustomOptimizer as WolfCustomOptimizer # noqa
 
 from aero_optim.optim.optimizer import WolfOptimizer
 from pymoo.core.problem import Problem
@@ -30,6 +27,7 @@ from aero_optim.geom import (get_area, get_camber_th, get_chords, get_circle,
                              get_cog, split_profile, plot_profile, plot_sides)
 from aero_optim.mesh.cascade_mesh import CascadeMesh
 from aero_optim.optim.optimizer import WolfOptimizer
+
 
 logger = logging.getLogger(__name__)
 
@@ -393,13 +391,14 @@ def compute_QoIs(config: dict, sim_outdir: str) -> pd.DataFrame:
     qty_list: list[list[float]] = []
     head_list: list[str] = []
     post_process_args: dict = config["simulator"]["post_process"]
+    fluid = config["simulator"]["fluid_type"]
     # loop over the post-processing arguments to extract from the results
     for qty in post_process_args["outputs"]:
         # check if the method for computing qty exists
         try:
             # get arguments
             get_args: Callable = globals()[f"args_{qty}"]
-            args = get_args(sim_outdir, config)
+            args = get_args(sim_outdir, config, fluid)
             get_value: Callable = globals()[qty]
             value = get_value(sim_outdir, args)
         except AttributeError:
@@ -469,37 +468,61 @@ def read_ml(filepath):
                 W=W_ml, beta=beta_ml)
 
 
-def read_mixed_out(filepath, nx_ml):
+def read_mixed_out(filepath, nx_ml, fluid="air"):
     """
     **Reads** mixed_out_ml_in.bin or mixed_out_ml_out.bin .
     """
-    with open(filepath, 'rb') as f:
-        nxml  = read_fortran_record(f, 'int')
-        xml   = read_fortran_record(f, 'double', nx_ml)
+    if fluid=="air":
+        with open(filepath, 'rb') as f:
+            nxml  = read_fortran_record(f, 'int')
+            xml   = read_fortran_record(f, 'double', nx_ml)
 
-        # Prasad
-        pmo_P = read_fortran_record(f, 'double', nx_ml)
+            # Prasad
+            pmo_P = read_fortran_record(f, 'double', nx_ml)
 
-        # Bloch
-        pmo_B = read_fortran_record(f, 'double', nx_ml)
-        Wmo_B = read_fortran_record(f, 'double', nx_ml)
-        bmo_B = read_fortran_record(f, 'double', nx_ml)
-        rmo_B = read_fortran_record(f, 'double', nx_ml)
+            # Bloch
+            pmo_B = read_fortran_record(f, 'double', nx_ml)
+            Wmo_B = read_fortran_record(f, 'double', nx_ml)
+            bmo_B = read_fortran_record(f, 'double', nx_ml)
+            rmo_B = read_fortran_record(f, 'double', nx_ml)
 
-        # Schreiber & Starken
-        pmo_S = read_fortran_record(f, 'double', nx_ml)
-        Wmo_S = read_fortran_record(f, 'double', nx_ml)
-        bmo_S = read_fortran_record(f, 'double', nx_ml)
-        rmo_S = read_fortran_record(f, 'double', nx_ml)
-        Mmo_S = read_fortran_record(f, 'double', nx_ml)
+            # Schreiber & Starken
+            pmo_S = read_fortran_record(f, 'double', nx_ml)
+            Wmo_S = read_fortran_record(f, 'double', nx_ml)
+            bmo_S = read_fortran_record(f, 'double', nx_ml)
+            rmo_S = read_fortran_record(f, 'double', nx_ml)
+            Mmo_S = read_fortran_record(f, 'double', nx_ml)
 
-    return dict(nxml=nxml, xml=xml,
-                pmo_P=pmo_P,
-                pmo_B=pmo_B, Wmo_B=Wmo_B, bmo_B=bmo_B, rmo_B=rmo_B,
-                pmo_S=pmo_S, Wmo_S=Wmo_S, bmo_S=bmo_S, rmo_S=rmo_S, Mmo_S=Mmo_S)
+        return dict(nxml=nxml, xml=xml,
+                    pmo_P=pmo_P,
+                    pmo_B=pmo_B, Wmo_B=Wmo_B, bmo_B=bmo_B, rmo_B=rmo_B,
+                    pmo_S=pmo_S, Wmo_S=Wmo_S, bmo_S=bmo_S, rmo_S=rmo_S, Mmo_S=Mmo_S)
+    elif fluid=="novec":
+        with open(filepath, 'rb') as f:
+            nxml  = read_fortran_record(f, 'int')
+            xml   = read_fortran_record(f, 'double', nx_ml)
+
+            # Averaged quantities
+            u_bar  = read_fortran_record(f, 'double', nx_ml)
+            v_bar  = read_fortran_record(f, 'double', nx_ml)
+            p_bar  = read_fortran_record(f, 'double', nx_ml)
+            rho_bar= read_fortran_record(f, 'double', nx_ml)
+            T_bar  = read_fortran_record(f, 'double', nx_ml)
+            c_bar  = read_fortran_record(f, 'double', nx_ml)
+            W_bar  = read_fortran_record(f, 'double', nx_ml)
+            M_bar  = read_fortran_record(f, 'double', nx_ml)
+            gamma  = read_fortran_record(f, 'double', nx_ml)
+            g_eq   = read_fortran_record(f, 'double', nx_ml)
+            p0_bar = read_fortran_record(f, 'double', nx_ml)
+
+            return dict(nxml=nxml, xml=xml,
+                        u_bar=u_bar, v_bar=v_bar,
+                        p_bar=p_bar, rho_bar=rho_bar,
+                        T_bar=T_bar, c_bar=c_bar, W_bar=W_bar,
+                        M_bar=M_bar, gamma=gamma, g_eq=g_eq, p0_bar=p0_bar)
 
 
-def read_ml_and_mixed_out(rep, ind):
+def read_ml_and_mixed_out(rep, ind, fluid="air"):
     """
     ind=1 -> inlet  (ml_in.bin  + mixed_out_ml_in.bin)
     ind=2 -> outlet (ml_out.bin + mixed_out_ml_out.bin)
@@ -510,22 +533,25 @@ def read_ml_and_mixed_out(rep, ind):
     mixed_file   = rep + ('/mixed_out_ml_in.bin'  if ind == 1 else '/mixed_out_ml_out.bin')
 
     ml   = read_ml(ml_file)
-    mo   = read_mixed_out(mixed_file, ml['nx'])
+    mo   = read_mixed_out(mixed_file, ml['nx'], fluid)
 
     return ml, mo
 
-def args_MixedoutOmega(sim_outdir: str, config: dict) -> dict:
+def args_MixedoutOmega(sim_outdir: str, config: dict, fluid: str) -> dict:
     """
     **Returns** a dictionary containing the required arguments for MixedoutOmega.
     """
     args: dict = {}
-    ml_in,  mo_in  = read_ml_and_mixed_out(sim_outdir, ind=1)
-    ml_out, mo_out = read_ml_and_mixed_out(sim_outdir, ind=2)
+    ml_in,  mo_in  = read_ml_and_mixed_out(sim_outdir, 1, fluid)
+    ml_out, mo_out = read_ml_and_mixed_out(sim_outdir, 2, fluid)
     info = get_sim_info(sim_outdir)
     mp_in = config["simulator"]["post_process"]["measurement_lines"]["inlet_x1"]
     #
     Lscale = info['Lref']
-    gam=1.4
+    if fluid=="air":
+        gam=1.4
+    elif fluid=="novec":
+        gam = (np.mean(mo_in['g_eq'])+np.mean(mo_out['g_eq']))/2
     gam1=gam-1
     pi=3.1415
     mp1_idx = np.argmin(np.abs(np.abs(ml_in['x'][:,1]/ Lscale)  - mp_in))
@@ -538,12 +564,21 @@ def args_MixedoutOmega(sim_outdir: str, config: dict) -> dict:
     args['beta1']=np.arctan(args['V1']/args['U1'])*180/pi+90
     cc1 = (1 + (gam1 / 2) * args['M1']**2)**(gam / gam1)
 
-    args['P2'] = np.mean(mo_out['pmo_B'])
-    args['M2'] = np.mean(mo_out['Mmo_S'])
-    cc2 = (1 + (gam1 / 2) * args['M2']**2)**(gam / gam1)
+    if fluid=="air":
+        args['P2'] = np.mean(mo_out['pmo_B'])
+        args['M2'] = np.mean(mo_out['Mmo_S'])
+        cc2 = (1 + (gam1 / 2) * args['M2']**2)**(gam / gam1)
+    elif fluid=="novec":
+        args['P2'] = np.mean(mo_out['p_bar'])
+        args['M2'] = np.mean(mo_out['M_bar'])
+    
+    if fluid=="air":
+        args['P1_tot'] = args['P1'] * cc1
+        args['P2_tot'] = args['P2'] * cc2
+    elif fluid=="novec":
+        args['P1_tot'] = args['P1'] * cc1
+        args['P2_tot'] = np.mean(mo_out['p0_bar'])
 
-    args['P1_tot'] = args['P1'] * cc1
-    args['P2_tot'] = args['P2'] * cc2
     args['pressure_ratio'] = args['P2'] / args['P1']
 
     return args
@@ -557,12 +592,12 @@ def MixedoutOmega(sim_outdir: str, args: dict) -> float:
     return (args['P1_tot'] - args['P2_tot']) /\
          (args['P1_tot'] - args['P1'])
 
-def args_PressureRatio(sim_outdir: str, config: dict) -> dict:
+def args_PressureRatio(sim_outdir: str, config: dict, fluid: str) -> dict:
     """
     **Returns** a dictionary containing the required arguments for PressureRatio 
     (same as MixedoutOmega).
     """
-    return args_MixedoutOmega(sim_outdir, config)
+    return args_MixedoutOmega(sim_outdir, config, fluid)
 
 def PressureRatio(sim_outdir:str, args: dict) -> float:
     """
@@ -628,8 +663,8 @@ def MixedoutLossCoef(sim_outdir: str, args: dict) -> float:
            (inlet_mixed_out_state["p0_bar"] - inlet_mixed_out_state["p_bar"])
 
 
-def args_OutflowAngle(sim_outdir: str, config: dict) -> dict:
-    return args_MixedoutLossCoef(sim_outdir, config)
+def args_OutflowAngle(sim_outdir: str, config: dict, fluid: str) -> dict:
+    return args_MixedoutLossCoef(sim_outdir, config, fluid)
 
 
 def OutflowAngle(sim_outdir: str, args: dict) -> float:
@@ -715,7 +750,7 @@ class CustomSimulator(WolfSimulator):
 
         # execute MUSICAA to delete half-cell
         os.chdir(sim_outdir)
-        preprocess_cmd = self.config["simulator"]["preprocess_cmd"].split()
+        preprocess_cmd = self.config["simulator"]["musicaa_cmd"].split()
         with open(f"{self.solver_name}_g{gid}_c{cid}_half-cell.out", "wb") as out:
             with open(f"{self.solver_name}_g{gid}_c{cid}_half-cell.err", "wb") as err:
                 logger.info(f"delete mesh half-cell for g{gid}, c{cid} with {self.solver_name}")
@@ -962,111 +997,44 @@ class CustomOptimizer(WolfCustomOptimizer):
                 self.J.append([loss_ADP, 0.5 * (loss_OP1 + loss_OP2)])
             else:
                 self.J.append([float("nan"), float("nan")])
+            print(self.J)
 
-        # compute candidates angle constraints
+        # compute candidates pressure ratio constraints
         if not self.constraint:
-            angle_constraints = [[-1.] * 3 for _ in range(len(X))]
+            pr_constraints = [[-1.] * 3 for _ in range(len(X))]
         else:
-            angle_constraints = []
+            pr_constraints = []
             CoI = self.CoI
+            pr_min = 1.2
             for cid in range(len(X)):
-                # print(f"g{gid}, c{cid}: Outflow angle constraints computation")
-                # # Check if the directory exists
-                # wolf_dir = os.path.join("output", "WOLF", f"wolf_g{gid}_c{cid}")
-                # if not os.path.exists(wolf_dir):
-                #     outflow_angle_ADP = 1000
-                #     outflow_angle_OP1 = 1000
-                #     outflow_angle_OP2 = 1000
-                # else:
-                outflow_angle_ADP = self.simulator.df_dict[gid][cid]["ADP"][CoI].dropna().iloc[-1]
-                outflow_angle_OP1 = self.simulator.df_dict[gid][cid]["OP1"][CoI].dropna().iloc[-1]
-                outflow_angle_OP2 = self.simulator.df_dict[gid][cid]["OP2"][CoI].dropna().iloc[-1]
-                print(f"g{gid}, c{cid}: Outflow angles - ADP: {outflow_angle_ADP}, OP1: {outflow_angle_OP1}, OP2: {outflow_angle_OP2}")
-                angle_constraints.append(
-                    [self.angle_ADP[0] - outflow_angle_ADP if outflow_angle_ADP < self.angle_ADP[0]
-                     else outflow_angle_ADP - self.angle_ADP[1],
-                     self.angle_OP1[0] - outflow_angle_OP1 if outflow_angle_OP1 < self.angle_OP1[0]
-                     else outflow_angle_OP1 - self.angle_OP1[1],
-                     self.angle_OP2[0] - outflow_angle_OP2 if outflow_angle_OP2 < self.angle_OP2[0]
-                     else outflow_angle_OP2 - self.angle_OP2[1]]
-                )
-                logger.debug(f"g{gid}, c{cid} ADP outflow angle: ({outflow_angle_ADP})")
-                if angle_constraints[-1][0] > 0:
-                    logger.info(f"g{gid}, c{cid} ADP outflow angle: constraint violation, should be between {self.angle_ADP[0]} and {self.angle_ADP[1]}")
-                logger.debug(f"g{gid}, c{cid} OP1 outflow angle: ({outflow_angle_OP1})")
-                if angle_constraints[-1][1] > 0:
-                    logger.info(f"g{gid}, c{cid} OP1 outflow angle: constraint violation, should be between {self.angle_OP1[0]} and {self.angle_OP1[1]}")
-                logger.debug(f"g{gid}, c{cid} OP2 outflow angle: ({outflow_angle_OP2})")
-                if angle_constraints[-1][2] > 0:
-                    logger.info(f"g{gid}, c{cid} OP2 outflow angle: constraint violation, should be between {self.angle_OP2[0]} and {self.angle_OP2[1]}")
-        print(self.J)
+                if cid in self.feasible_cid[gid]:
+                    pr_ADP = self.simulator.df_dict[gid][cid]["ADP"][CoI].dropna().iloc[-1]
+                    pr_OP1 = self.simulator.df_dict[gid][cid]["OP1"][CoI].dropna().iloc[-1]
+                    pr_OP2 = self.simulator.df_dict[gid][cid]["OP2"][CoI].dropna().iloc[-1]
+                    print(f"g{gid}, c{cid}: Pressure ratios - ADP: {pr_ADP}, OP1: {pr_OP1}, OP2: {pr_OP2}")
+                    pr_constraints.append(
+                        [pr_min - pr_ADP,
+                         pr_min - pr_OP1,
+                         pr_min - pr_OP2]
+                    )
+                    logger.debug(f"g{gid}, c{cid} ADP pressure ratio: ({pr_ADP})")
+                    if pr_constraints[-1][0] > 0:
+                        logger.info(f"g{gid}, c{cid} ADP pressure ratio: constraint violation, should be above {pr_min}")
+                    logger.debug(f"g{gid}, c{cid} OP1 pressure ratio: ({pr_OP1})")
+                    if pr_constraints[-1][1] > 0:
+                        logger.info(f"g{gid}, c{cid} OP1 pressure ratio: constraint violation, should be above {pr_min}")
+                    logger.debug(f"g{gid}, c{cid} OP2 pressure ratio: ({pr_OP2})")
+                    if pr_constraints[-1][2] > 0:
+                        logger.info(f"g{gid}, c{cid} OP2 pressure ratio: constraint violation, should be above {pr_min}")
+                else:
+                    pr_constraints.append([-1.] * 3)
+
         out["F"] = np.vstack(self.J[-self.doe_size:])
         self._observe(out["F"])
-        out["G"] = np.column_stack([geom_constraints, np.vstack(angle_constraints)])
+        out["G"] = np.column_stack([geom_constraints, np.vstack(pr_constraints)])
         for g in out["G"]:
             self.G.append(g.tolist())
         self.gen_ctr += 1
-
-    def apply_candidate_constraints(self, profile: np.ndarray, gid: int, cid: int) -> list[float]:
-        """
-        **Computes** various relative and absolute constraints of a given candidate
-        and **returns** their values as a list of floats.
-
-        Note:
-            when some constraint is violated, a graph is also generated.
-        """
-        if not self.constraint:
-            return [-1.] * 6
-        # relative constraints
-        # thmax / c:        +/- 30%
-        # Xthmax / c_ax:    +/- 20%
-        upper, lower = split_profile(profile)
-        c, c_ax = get_chords(profile)
-        camber_line, thmax, Xthmax, th_vec = get_camber_th(upper, lower, interpolate=True)
-        th_over_c = thmax / c
-        Xth_over_cax = Xthmax / c_ax
-        logger.debug(f"th_max = {thmax} m, Xth_max {Xthmax} m")
-        logger.debug(f"th_max / c = {th_over_c}, Xth_max / c_ax = {Xth_over_cax}")
-        th_cond = abs(th_over_c - self.bsl_th_over_c) / self.bsl_th_over_c - 0.3
-        logger.debug(f"th_max / c: {'violated' if th_cond > 0 else 'not violated'} ({th_cond})")
-        Xth_cond = abs(Xth_over_cax - self.bsl_Xth_over_cax) / self.bsl_Xth_over_cax - 0.2
-        logger.debug(f"Xth_max / c_ax: {'violated' if Xth_cond > 0 else 'not violated'} "
-                     f"({Xth_cond})")
-        # area / (c * c):   +/- 20%
-        area = get_area(profile)
-        area_over_c2 = area / c**2
-        area_cond = abs(area_over_c2 - self.bsl_area_over_c2) / self.bsl_area_over_c2 - 0.2
-        logger.debug(f"area / (c * c): {'violated' if area_cond > 0 else 'not violated'} "
-                     f"({area_cond})")
-        # X_cg / c_ax:      +/- 20%
-        cog = get_cog(profile)
-        Xcg_over_cax = cog[0] / c_ax
-        cog_cond = abs(Xcg_over_cax - self.bsl_Xcg_over_cax) / self.bsl_Xcg_over_cax - 0.2
-        logger.debug(f"X_cg / c_ax: {'violated' if cog_cond > 0 else 'not violated'} ({cog_cond})")
-        # absolute constraints
-        # leading/trailing edge radii and principal axis condition
-        O_le = get_valid_center(
-            profile[:, 0], profile[:, 1], dmin=0.005 * c, dmax=1.4 * 0.005 * c, le=True
-        )
-        O_te = get_valid_center(
-            profile[:, 0], profile[:, 1], dmin=0.005 * c, dmax=1.4 * 0.005 * c, le=False
-        )
-        le_circle = get_circle(O_le, 0.005 * c) if O_le is not None else np.array([])
-        te_circle = get_circle(O_te, 0.005 * c) if O_te is not None else np.array([])
-        # leading edge radius: r_le > 0.5% * c
-        logger.debug(f"le radius: {'violated' if O_le is None else 'not violated'}")
-        le_cond = 1 if O_le is None else -1
-        # trailing edge radius: r_te > 0.5% * c
-        logger.debug(f"te radius: {'violated' if O_te is None else 'not violated'}")
-        te_cond = 1 if O_te is None else -1
-        if cog_cond > 0:
-            fig_name = os.path.join(self.figdir, f"profile_g{gid}_c{cid}.png")
-            plot_profile(profile, cog, fig_name)
-        if (th_cond > 0 or Xth_cond > 0 or area_cond > 0 or le_cond > 0 or te_cond > 0):
-            fig_name = os.path.join(self.figdir, f"sides_g{gid}_c{cid}.png")
-            plot_sides(upper, lower, camber_line, le_circle, te_circle, th_vec, fig_name)
-        return [th_cond, Xth_cond, area_cond, cog_cond, le_cond, te_cond]
-
 
 class CustomEvolution(WolfCustomEvolution):
     """

@@ -29,6 +29,7 @@ RES*
 tmp
 examples/*/*.pdf
 examples/*/*.png
+remote
 
 # mypy
 .mypy_cache/

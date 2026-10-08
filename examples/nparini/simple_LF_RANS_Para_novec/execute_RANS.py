@@ -3,6 +3,7 @@ import logging
 import subprocess
 import functools
 import numpy as np
+import glob
 import os
 import sys
 import re
@@ -19,7 +20,7 @@ from aero_optim.utils import (cp_filelist, rm_filelist, read_next_line_in_file,
 EPSILON: float = 1e-6
 FAILURE: int = 1
 SUCCESS: int = 0
-MUSICAA: str = "mpiexec -n @nproc /home/nparini/beta-aero-optim/examples/nparini/Para_test/musicaa"
+MUSICAA: str = "srun --exact --ntasks=@nproc --nodes=1 @musicaa &"
 
 print = functools.partial(print, flush=True)
 
@@ -112,18 +113,39 @@ def pre_process_PVAR(config: dict, sim_outdir: str, computation_iter: int):
     n_iter_i = config["simulator"]["restart_criteria"]["n_iter_later"]
     if computation_iter == 0:
         # --- RUN CASE 01: Simulation start from scratch ---
-        args.update({
-            'Max number of temporal iterations': f"{n_iter_01} 3000.0",
-            "from_interp": "1"})
+        if (config["simulator"]["restart_musicaa"]):
+            # Interpolate the restart
+            args.update({"from_interp": "3"})
+            custom_input(param_ini, args)
+            exec_cmd = MUSICAA.replace("@nproc", str(get_nproc(sim_outdir)))
+            exec_cmd = exec_cmd.replace("@musicaa", str(config['simulator']['musicaa_cmd']))
+            _, proc = submit_popen_process("musicaa", exec_cmd.split(), sim_outdir)
+            monitor_sim_progress(proc)
+            print(f"INFO -- Interpolated baseline results")
+            
+            args.update({
+                'Max number of temporal iterations': f"{n_iter_01} 3000.0",
+                "from_interp": "2"})
+        else:
+            args.update({
+                'Max number of temporal iterations': f"{n_iter_01} 3000.0",
+                "from_interp": "1"})
         # Calculate initial P_ex from Reference Total Pressure
         M1 = config["simulator"]["restart_criteria"]["Mtarget"]
         P1_tot = config["simulator"]["restart_criteria"]["Pref"]
         pi = config["simulator"]["restart_criteria"]["pi"]
-        # Hard-coded constants (TO CHANGE)
-        gam, gam1 = 1.4, 0.4
-        cc = (1 + (gam1 / 2) * (M1 ** 2)) ** (gam / gam1)
-        P1 = P1_tot / cc
-        P2 = P1 * pi
+        # OLD initial guess backpressure
+        # gam, gam1 = 1.4, 0.4
+        # cc = (1 + (gam1 / 2) * (M1 ** 2)) ** (gam / gam1)
+        # P1 = P1_tot / cc
+        # P2 = P1 * pi
+        # Hard coded bsl value (TO CHANGE)
+        if sim_outdir=='ADP':
+            P2 = config["simulator"]["restart_criteria"]["P2_01_ADP"]
+        elif sim_outdir=='OP1':
+            P2 = config["simulator"]["restart_criteria"]["P2_01_OP1"]
+        elif sim_outdir=='OP2':
+            P2 = config["simulator"]["restart_criteria"]["P2_01_OP2"]
         args.update({'back-pressure': P2})
     elif computation_iter == 1:
         # --- RUN CASE 02: Simulation start from 01 case ---
@@ -148,8 +170,22 @@ def pre_process_PVAR(config: dict, sim_outdir: str, computation_iter: int):
             "error": err
         }
         save_history(sim_outdir, history)
+
+        # Check convergence tolerance
+        if err < tol:
+            try:
+                open(stop_file, "x").close()  
+            except FileExistsError:
+                pass 
+            return        
+
         # Proportional correction for the next step
-        P2_02 = P2_01 - alpha * (M_target - M1_01)
+        if M1_01 > M_target:
+            P2_02 = P2_01 + P2_01 * 0.01
+        else:
+            P2_02 = P2_01 - P2_01 * 0.01
+        #P2_02 = P2_01 - alpha * (M_target - M1_01)
+        
         args.update({'back-pressure': P2_02})
     else:
         # --- RUN CASE i: Standard Iterative Loop ---
@@ -187,16 +223,25 @@ def pre_process_PVAR(config: dict, sim_outdir: str, computation_iter: int):
         # Update for the new backpressure
         M_m1, M_m2 = M_latest, M_hist[-1]
         P_m1, P_m2 = P_latest, P_hist[-1]
-        if ((np.abs(M_m1 - M_m2) < 1e-2) and (np.abs(M_m1 - M_target) > 1e-1)):
-            P2_new = P_m1 - 5000
-            if (P2_new < 60000) or (P2_new > 99000):
+        #if ((np.abs(M_m1 - M_m2) < 1e-3) and (np.abs(M_m1 - M_target) > 1e-1)):
+        #    P2_new = P_m1 - 5000
+        #    if ((P2_new < 60000) or (P2_new > 99000)):
+        #        try:
+        #            open(stop_file, "x").close()  
+        #        except FileExistsError:
+        #            pass
+        #else: 
+        P2_new = P_m1 + (P_m1 - P_m2) * ((M_target - M_m1) / (M_m1 - M_m2))
+        if config["simulator"]["fluid_type"]=="air":
+            if ((P2_new < 60000) or (P2_new > 99000)):
+                P2_new = P_m1
                 try:
                     open(stop_file, "x").close()  
                 except FileExistsError:
                     pass
-        else: 
-            P2_new = P_m1 + (P_m1 - P_m2) * ((M_target - M_m1) / (M_m1 - M_m2))
-            if (P2_new < 60000) or (P2_new > 99000):
+        elif config["simulator"]["fluid_type"]=="novec":
+            if ((P2_new < 150000) or (P2_new > 199000)):
+                P2_new = P_m1
                 try:
                     open(stop_file, "x").close()  
                 except FileExistsError:
@@ -208,22 +253,29 @@ def pre_process_PVAR(config: dict, sim_outdir: str, computation_iter: int):
 def execute_steady(config: dict, sim_outdir: str):
     """
     **Executes** a Reynolds-Averaged Navier-Stokes simulation with MUSICAA. RANS_PVAR loop implemented,
-    simulation is automatically restarted until the inlet mach number as reached a desired target 
+    simulation is automatically restarted until the inlet mach number has reached a desired target 
     value (or the number of maximum restart is reached).
     """
     # start RANS_PVAR loop
     current_restart = 0
     config.update({"is_stats": False})
     config.update({"is_post": False})
+    stop_file = os.path.join(sim_outdir, f"../stop{sim_outdir}")
     while True:
         # prepare the input files 
         pre_process_PVAR(config, sim_outdir, current_restart)
+        # exit the loop when unique incidence is reached
+        if (os.path.exists(stop_file)):
+            # Clean up the stop file if it exists so it doesn't affect subsequent runs
+            if os.path.exists(stop_file):
+                os.remove(stop_file)
+            break
         exec_cmd = MUSICAA.replace("@nproc", str(get_nproc(sim_outdir)))
+        exec_cmd = exec_cmd.replace("@musicaa", str(config['simulator']['musicaa_cmd']))
         print(f"INFO -- submit popen steady: {exec_cmd} - ITER {current_restart}")
         _, proc = submit_popen_process("musicaa", exec_cmd.split(), sim_outdir)
         monitor_sim_progress(proc)
         current_restart += 1
-        stop_file = os.path.join(sim_outdir, f"../stop{sim_outdir}")
         # exit the loop when the number of max iter is reached or convergence is reached
         if ((current_restart >= config["simulator"]["restart_criteria"]["iter_max"]) or (os.path.exists(stop_file))):
             # Clean up the stop file if it exists so it doesn't affect subsequent runs
@@ -236,6 +288,7 @@ def execute_steady(config: dict, sim_outdir: str):
     pre_process_stats(config, sim_outdir, "steady")
     nproc = get_nproc(sim_outdir)
     exec_cmd = MUSICAA.replace("@nproc", str(nproc))
+    exec_cmd = exec_cmd.replace("@musicaa", str(config['simulator']['musicaa_cmd']))
     print(f"INFO -- submit popen steady: {exec_cmd} - STATS")
     _, proc = submit_popen_process("musicaa", exec_cmd.split(), sim_outdir)
     monitor_sim_progress(proc)
@@ -245,6 +298,7 @@ def execute_steady(config: dict, sim_outdir: str):
     pre_process_post(config, sim_outdir)
     nproc = 9
     exec_cmd = MUSICAA.replace("@nproc", str(nproc))
+    exec_cmd = exec_cmd.replace("@musicaa", str(config['simulator']['post_cmd']))
     print(f"INFO -- submit popen steady: {exec_cmd} - POST-PROCESSING")
     _, proc = submit_popen_process("musicaa", exec_cmd.split(), sim_outdir)
     monitor_sim_progress(proc)
@@ -320,7 +374,17 @@ def main() -> int:
         os.makedirs(sim_dir, exist_ok=True)
         args = {}
         # add simulation files
-        cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
+        if (config["simulator"]["restart_musicaa"]):
+            restart_folder = config["simulator"]["ADP_restart_folder"]
+            files_to_copy = (
+                glob.glob(os.path.join(restart_folder, "restart_*")) +
+                glob.glob(os.path.join(restart_folder, "time.ini")) +
+                glob.glob(os.path.join(restart_folder, "info.ini"))
+            )
+            cp_filelist(files_to_copy, [sim_dir] * len(files_to_copy))
+            cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
+        else:
+            cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
         # specify path for mesh files
         old_dir_grid = read_next_line_in_file("param.ini", "Directory for grid files")[1:-1]
         dir_grid = "'" + os.path.join("../", old_dir_grid) + "'"
@@ -336,9 +400,19 @@ def main() -> int:
         print("** ------------------------ **")
         sim_dir = "OP1"
         os.makedirs(sim_dir, exist_ok=True)
+        args={}
         # add simulation files
-        cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
-        args = {}
+        if (config["simulator"]["restart_musicaa"]):
+            restart_folder = config["simulator"]["OP1_restart_folder"]
+            files_to_copy = (
+                glob.glob(os.path.join(restart_folder, "restart_*")) +
+                glob.glob(os.path.join(restart_folder, "time.ini")) +
+                glob.glob(os.path.join(restart_folder, "info.ini"))
+            )
+            cp_filelist(files_to_copy, [sim_dir] * len(files_to_copy))
+            cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
+        else:
+            cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
         # specify path for mesh files
         old_dir_grid = read_next_line_in_file("param.ini", "Directory for grid files")[1:-1]
         dir_grid = "'" + os.path.join("../", old_dir_grid) + "'"
@@ -356,9 +430,19 @@ def main() -> int:
         print("** ------------------------ **")
         sim_dir = "OP2"
         os.makedirs(sim_dir, exist_ok=True)
-        # add simulation files
-        cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
         args = {}
+        # add simulation files
+        if (config["simulator"]["restart_musicaa"]):
+            restart_folder = config["simulator"]["OP2_restart_folder"]
+            files_to_copy = (
+                glob.glob(os.path.join(restart_folder, "restart_*")) +
+                glob.glob(os.path.join(restart_folder, "time.ini")) +
+                glob.glob(os.path.join(restart_folder, "info.ini"))
+            )   
+            cp_filelist(files_to_copy, [sim_dir] * len(files_to_copy))
+            cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
+        else:
+            cp_filelist(config["simulator"]["cp_list"], [sim_dir] * len(config["simulator"]["cp_list"]))
         # specify path for mesh files
         old_dir_grid = read_next_line_in_file("param.ini", "Directory for grid files")[1:-1]
         dir_grid = "'" + os.path.join("../", old_dir_grid) + "'"

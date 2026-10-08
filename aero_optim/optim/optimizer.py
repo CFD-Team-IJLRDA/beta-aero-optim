@@ -493,6 +493,7 @@ class WolfOptimizer(Optimizer, ABC):
         self.area_margin = self.config["optim"].get("area_margin", 40.) / 100.
         self.penalty = self.config["optim"].get("penalty", ["CL", self.baseline_CL])
         self.constraint = self.config["optim"].get("constraint", True)
+        self.geom_constraint = self.config["optim"].get("geom_constraint", True)
 
     def plot_generation(
             self,
