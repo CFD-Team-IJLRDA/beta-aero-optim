@@ -1,10 +1,12 @@
 """Design of experiments: BladeGen + POD blades evaluated with OpenFOAM at every operating point.
 
-Usage: doe -c openfoam_config.json [--pilot N] [--shard I/N] [--outdir DIR]
+Usage: doe -c openfoam_config.json [--pilot N] [--shard I[,J...]/N] [--budget B] [--outdir DIR]
        doe -c openfoam_config.json --merge N [--outdir DIR]
 
 --shard I/N runs only the DoE samples whose index is I modulo N (the baseline runs in shard 0), so that one DoE can be
 split over machines that share the same doe_samples.csv and POD basis; each shard writes doe_results_shard<I>of<N>.csv.
+Several shards in one process (I,J/N, e.g. 0,1,2/4 for a machine three times faster than the other) write one file
+per shard. --budget overrides config["doe"]["budget"] (solver processes at once on this machine).
 --merge N concatenates the N shard files into doe_results.csv (after copying all shards' case folders into one outdir).
 
 Everything is written under config["study"]["outdir"] and the run can be resumed: finished
@@ -111,7 +113,7 @@ def results_row(df_dict_entry: dict[str, pd.DataFrame]) -> dict:
     return row
 
 
-def run(config: dict, pilot: int | None = None, shard: tuple[int, int] | None = None):
+def run(config: dict, pilot: int | None = None, shard: tuple[tuple[int, ...], int] | None = None):
     outdir = config["study"]["outdir"]
     os.makedirs(outdir, exist_ok=True)
     baseline = np.array(from_dat(config["study"]["file"], 2, 1))[:, :2]
@@ -120,13 +122,13 @@ def run(config: dict, pilot: int | None = None, shard: tuple[int, int] | None = 
     if pilot:
         samples = samples.iloc[:pilot]
     if shard:
-        samples = samples[samples.index % shard[1] == shard[0]]
+        samples = samples[(samples.index % shard[1]).isin(shard[0])]
     budget = config["doe"].get("budget", 96)
 
     sim = OpenFOAMSimulator(config)
     coeff_cols = [f"c{k + 1}" for k in range(pod.n_modes)]
     blades = [("baseline", BASELINE_GID, 0, baseline, dict(zip(coeff_cols, pod.project(np.zeros_like(baseline)))))]
-    if shard and shard[0] != 0:
+    if shard and 0 not in shard[0]:
         blades = []
     blades += [(f"{i:04d}", DOE_GID, int(i), pod.reconstruct(s[coeff_cols].to_numpy()), s.to_dict())
                for i, s in samples.iterrows()]
@@ -140,9 +142,13 @@ def run(config: dict, pilot: int | None = None, shard: tuple[int, int] | None = 
             row.update(results_row(sim.df_dict[gid][cid]))
         rows.append(row)
     results = pd.DataFrame(rows)
-    name = f"doe_results_shard{shard[0]}of{shard[1]}.csv" if shard else "doe_results.csv"
-    results.to_csv(os.path.join(outdir, name), index=False)
-    logger.info(f"{(results.status == 'ok').sum()} / {len(results)} blades simulated, results in {os.path.join(outdir, name)}")
+    if shard:
+        idx = results.blade.map(lambda b: 0 if b == "baseline" else int(b) % shard[1])
+        for i in shard[0]:
+            results[idx == i].to_csv(os.path.join(outdir, f"doe_results_shard{i}of{shard[1]}.csv"), index=False)
+    else:
+        results.to_csv(os.path.join(outdir, "doe_results.csv"), index=False)
+    logger.info(f"{(results.status == 'ok').sum()} / {len(results)} blades simulated, results in {outdir}")
     return results
 
 
@@ -160,7 +166,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-c", "--config", required=True, help="path to the JSON config")
     parser.add_argument("--pilot", type=int, default=None, help="only run the first N DoE samples")
-    parser.add_argument("--shard", default=None, help="I/N: run only the samples with index I modulo N")
+    parser.add_argument("--shard", default=None, help="I[,J...]/N: run only the samples whose index modulo N is listed")
+    parser.add_argument("--budget", type=int, default=None, help="override config['doe']['budget'] on this machine")
     parser.add_argument("--merge", type=int, default=None, help="merge N shard result files into doe_results.csv")
     parser.add_argument("--outdir", default=None, help="override config['study']['outdir'] (e.g. on another machine)")
     args = parser.parse_args()
@@ -173,7 +180,12 @@ def main():
     if args.merge:
         merge(config["study"]["outdir"], args.merge)
         return
-    shard = tuple(int(v) for v in args.shard.split("/")) if args.shard else None
+    if args.budget:
+        config["doe"]["budget"] = args.budget
+    shard = None
+    if args.shard:
+        ids, n = args.shard.split("/")
+        shard = (tuple(int(i) for i in ids.split(",")), int(n))
     run(config, args.pilot, shard)
 
 
