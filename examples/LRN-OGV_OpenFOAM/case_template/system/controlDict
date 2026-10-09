@@ -28,6 +28,24 @@ functions
     #includeFunc MachNo
     #includeFunc solverInfo
 
+    // Time-averaged fields over the same iterations as the MP1/MP2 sampling (sampleStart -> endTime):
+    // pMean, UMean, rhoMean, TMean, nutMean, written with the fields. Training data for field surrogates.
+    fieldAverage
+    {
+        type            fieldAverage;
+        libs            (fieldFunctionObjects);
+        timeStart       $sampleStart;
+        writeControl    writeTime;
+        fields
+        (
+            p   { mean on; prime2Mean off; base iteration; }
+            U   { mean on; prime2Mean off; base iteration; }
+            rho { mean on; prime2Mean off; base iteration; }
+            T   { mean on; prime2Mean off; base iteration; }
+            nut { mean on; prime2Mean off; base iteration; }
+        );
+    }
+
     // Measurement planes 20 mm upstream of the LE (MP1) and downstream of the TE (MP2),
     // each exactly one pitch (0.04039 m) between the periodic boundaries, at mid-span.
     MP

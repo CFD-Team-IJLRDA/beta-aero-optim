@@ -88,6 +88,7 @@ def columns_doc(ops: list[str], params: list[str], n_modes: int) -> dict:
             f"{op}_Ma1": f"{op}: mixed-out Mach number at MP1, last iteration [-]",
             f"{op}_rel_std_%": f"{op}: {op}_w_std / {op}_w [%]",
             f"{op}_drift_%": f"{op}: |mean loss second half - first half of the window| / mean [%]",
+            f"{op}_iterations": f"{op}: total iterations run (end_time, or more for rescued runs)",
             f"{op}_window": f"{op}: iterations averaged over (later than the default for rescued runs, "
                             "see dataset.json)",
         })
@@ -144,6 +145,7 @@ def main():
                 reasons.append(f"{op}: {q['reason']}")
             else:
                 last = max(int(d) for d in os.listdir(case) if d.isdigit())
+                out[f"{op}_iterations"] = last
                 out[f"{op}_Ma1"] = mp1_mach(case, last, dict_path)
         out["reason"] = "; ".join(reasons)
         return out
