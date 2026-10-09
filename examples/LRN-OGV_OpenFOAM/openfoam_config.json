@@ -1,17 +1,18 @@
 {
     "study": {
         "file": "baseline_322.dat",
-        "outdir": "/mnt/Data_B/beta-aero-optim-runs/doe1000_bladegen"
+        "outdir": "/mnt/Data_B/beta-aero-optim-runs/doe1000_wall2"
     },
     "mesh": {
+        "template": "cascade_wall2.geo",
         "header": 2,
         "scale": 1
     },
     "simulator": {
         "ref_input": "case_template",
         "exec_cmd": "rhoSimpleFoam",
-        "end_time": 6000,
-        "sample_start": 4000,
+        "end_time": 10000,
+        "sample_start": 8000,
         "sample_interval": 1,
         "pitch": 0.04039,
         "operating_points": {

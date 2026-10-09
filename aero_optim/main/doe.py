@@ -1,6 +1,11 @@
 """Design of experiments: BladeGen + POD blades evaluated with OpenFOAM at every operating point.
 
-Usage: doe -c openfoam_config.json [--pilot N]
+Usage: doe -c openfoam_config.json [--pilot N] [--shard I/N] [--outdir DIR]
+       doe -c openfoam_config.json --merge N [--outdir DIR]
+
+--shard I/N runs only the DoE samples whose index is I modulo N (the baseline runs in shard 0), so that one DoE can be
+split over machines that share the same doe_samples.csv and POD basis; each shard writes doe_results_shard<I>of<N>.csv.
+--merge N concatenates the N shard files into doe_results.csv (after copying all shards' case folders into one outdir).
 
 Everything is written under config["study"]["outdir"] and the run can be resumed: finished
 blades are reloaded from their qois.csv, existing meshes and the POD basis are reused.
@@ -106,7 +111,7 @@ def results_row(df_dict_entry: dict[str, pd.DataFrame]) -> dict:
     return row
 
 
-def run(config: dict, pilot: int | None = None):
+def run(config: dict, pilot: int | None = None, shard: tuple[int, int] | None = None):
     outdir = config["study"]["outdir"]
     os.makedirs(outdir, exist_ok=True)
     baseline = np.array(from_dat(config["study"]["file"], 2, 1))[:, :2]
@@ -114,11 +119,15 @@ def run(config: dict, pilot: int | None = None):
     samples = doe_samples(config, outdir, pod)
     if pilot:
         samples = samples.iloc[:pilot]
+    if shard:
+        samples = samples[samples.index % shard[1] == shard[0]]
     budget = config["doe"].get("budget", 96)
 
     sim = OpenFOAMSimulator(config)
     coeff_cols = [f"c{k + 1}" for k in range(pod.n_modes)]
     blades = [("baseline", BASELINE_GID, 0, baseline, dict(zip(coeff_cols, pod.project(np.zeros_like(baseline)))))]
+    if shard and shard[0] != 0:
+        blades = []
     blades += [(f"{i:04d}", DOE_GID, int(i), pod.reconstruct(s[coeff_cols].to_numpy()), s.to_dict())
                for i, s in samples.iterrows()]
     status = run_blades(config, sim, [b[:4] for b in blades], outdir, budget)
@@ -131,9 +140,19 @@ def run(config: dict, pilot: int | None = None):
             row.update(results_row(sim.df_dict[gid][cid]))
         rows.append(row)
     results = pd.DataFrame(rows)
+    name = f"doe_results_shard{shard[0]}of{shard[1]}.csv" if shard else "doe_results.csv"
+    results.to_csv(os.path.join(outdir, name), index=False)
+    logger.info(f"{(results.status == 'ok').sum()} / {len(results)} blades simulated, results in {os.path.join(outdir, name)}")
+    return results
+
+
+def merge(outdir: str, n: int) -> pd.DataFrame:
+    """**Concatenates** the n shard result files of outdir into doe_results.csv (baseline first, then by blade)."""
+    parts = [pd.read_csv(os.path.join(outdir, f"doe_results_shard{i}of{n}.csv"), dtype={"blade": str}) for i in range(n)]
+    results = pd.concat(parts, ignore_index=True)
+    results = pd.concat([results[results.blade == "baseline"], results[results.blade != "baseline"].sort_values("blade")])
     results.to_csv(os.path.join(outdir, "doe_results.csv"), index=False)
-    logger.info(f"{(results.status == 'ok').sum()} / {len(results)} blades simulated, "
-                f"results in {os.path.join(outdir, 'doe_results.csv')}")
+    logger.info(f"merged {n} shards: {len(results)} blades, {(results.status == 'ok').sum()} ok")
     return results
 
 
@@ -141,12 +160,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-c", "--config", required=True, help="path to the JSON config")
     parser.add_argument("--pilot", type=int, default=None, help="only run the first N DoE samples")
+    parser.add_argument("--shard", default=None, help="I/N: run only the samples with index I modulo N")
+    parser.add_argument("--merge", type=int, default=None, help="merge N shard result files into doe_results.csv")
+    parser.add_argument("--outdir", default=None, help="override config['study']['outdir'] (e.g. on another machine)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     config_path = os.path.abspath(args.config)
     config = json.load(open(config_path))
     os.chdir(os.path.dirname(config_path))
-    run(config, args.pilot)
+    if args.outdir:
+        config["study"]["outdir"] = os.path.abspath(args.outdir)
+    if args.merge:
+        merge(config["study"]["outdir"], args.merge)
+        return
+    shard = tuple(int(v) for v in args.shard.split("/")) if args.shard else None
+    run(config, args.pilot, shard)
 
 
 if __name__ == "__main__":

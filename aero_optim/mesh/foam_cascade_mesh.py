@@ -72,7 +72,8 @@ class CascadeTemplateMesh:
     `write_mesh`): the blade profile file is substituted into the cascade `.geo` template and
     meshed with gmsh into an MSH2 file for OpenFOAM.
 
-    Config: `config["mesh"]` may set `template` (default: cascade_mattia.geo), `header`
+    Config: `config["mesh"]` may set `template` (a path, or the name of a file in mesh/templates/;
+    default: cascade_mattia.geo), `header`
     (profile file header lines, default 2) and `scale` (profile scaling to metres, default 1).
     """
     def __init__(self, config: dict, datfile: str = ""):
@@ -81,6 +82,8 @@ class CascadeTemplateMesh:
         self.outdir: str = config["study"]["outdir"]
         self.outfile: str = os.path.splitext(os.path.basename(self.dat_file))[0]
         self.template: str = mesh_config.get("template", DEFAULT_CASCADE_TEMPLATE)
+        if not os.path.isfile(self.template):     # a bare name refers to a template shipped in mesh/templates/
+            self.template = os.path.join(os.path.dirname(DEFAULT_CASCADE_TEMPLATE), self.template)
         self.header: int = mesh_config.get("header", 2)
         self.scale: float = mesh_config.get("scale", 1.)
 
