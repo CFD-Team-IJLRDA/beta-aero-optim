@@ -18,12 +18,13 @@ from custom_cascade_musicaa import get_time_info, get_niter_ftt, compute_QoIs
 from aero_optim.utils import (cp_filelist, rm_filelist, read_next_line_in_file,
                               custom_input, submit_popen_process, wait_for_it)
 
+# paramiko is a library needed for remote optimization on cluster
 from paramiko import SSHClient, AutoAddPolicy, ProxyCommand
 
 EPSILON: float = 1e-6
 FAILURE: int = 1
 SUCCESS: int = 0
-MUSICAA: str = "mpiexec -n 45 /home/mciarlatani/bin/musicaa"
+MUSICAA: str = "mpiexec -n 45 /mnt/Data_B/beta-aero-optim/bin/musicaa"
 
 print = functools.partial(print, flush=True)
 
@@ -86,9 +87,11 @@ def execute_unsteady(config: dict, sim_outdir: str):
     """
     **Executes** a Large Eddy Simulation with MUSICAA.
     """
+    # set before any phase: when a phase is skipped on resume (init_2D / init_3D found), the monitor of the next phase
+    # still reads config["is_stats"] (KeyError otherwise)
+    config.update({"is_stats": False})
     if not os.path.isdir(os.path.join(sim_outdir, "init_2D")):
         # initialize LES with a fully developed 2D field
-        config.update({"is_stats": False})
         pre_process_init_unsteady("2D", sim_outdir)
         exec_cmd = MUSICAA.replace("@nproc", str(get_nproc(sim_outdir)))
         print(f"INFO -- submit popen unsteady 2D: {exec_cmd}")

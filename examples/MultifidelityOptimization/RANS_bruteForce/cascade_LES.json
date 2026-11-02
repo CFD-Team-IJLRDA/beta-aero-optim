@@ -58,8 +58,8 @@
     "simulator": {
         "ref_input": "hf_config.json",
         "cp_list": ["param.ini", "param_blocks.ini", "param_blocks.ini_3D", "param_rans.ini", "feos_air.ini"],
-        "preprocess_cmd" : "/home/mciarlatani/bin/musicaa",
-        "exec_cmd" : "python3 /home/mciarlatani/GPROfficial/beta-aero-optim/Optimization/RANS_bruteForce/execute_MUSICAA.py -remote",
+        "preprocess_cmd" : "/mnt/Data_B/beta-aero-optim/bin/musicaa",
+        "exec_cmd" : "python3 /mnt/Data_B/beta-aero-optim/Optimization/RANS_bruteForce/execute_MUSICAA.py -ms 1",
         "restart_musicaa": 5,
         "divide_CFL_by": 1.3,
 
