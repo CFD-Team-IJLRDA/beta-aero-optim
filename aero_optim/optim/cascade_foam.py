@@ -39,7 +39,7 @@ from scipy.spatial import cKDTree  # noqa: E402
 
 from aero_optim.geom import (get_area, get_camber_th, get_chords, get_cog,  # noqa: E402
                              le_radius_violation, self_intersects, split_profile)
-from aero_optim.shape.bladegen_pod import BladeGenPOD  # noqa: E402
+from aero_optim.shape.bladegen_pod import BladeGenPOD, build_dataset  # noqa: E402
 from aero_optim.simulator.cascade_batch import run_blades  # noqa: E402
 from aero_optim.simulator.cascade_qoi import run_quality  # noqa: E402
 from aero_optim.simulator.openfoam import OpenFOAMSimulator  # noqa: E402
@@ -132,6 +132,9 @@ class CascadeFoamProblem(Problem):
     - outdir (str): output folder of the optimisation.
     - pod_dir (str): folder with basis.npz and dataset.npz (the BladeGen training blades).
     - init_doe (str): finished DoE folder (doe_results.csv, OPENFOAM/) to start from.
+    - init (str): "best" (default: the best pop_size DoE blades), "random" (pop_size random DoE blades) or "lhs"
+      (pop_size new BladeGen blades from a Latin hypercube over config["bladegen"]["param_bounds"], simulated as
+      generation 0); "random" and "lhs" use no knowledge of the DoE results.
     - pop_size (int), n_gen (int), seed (int), budget (int): NSGA-II and parallel settings.
     - angle_tol (dict), angle_ref (dict, optional): outflow-angle windows [deg];
       the reference defaults to the baseline angles of init_doe.
@@ -152,6 +155,7 @@ class CascadeFoamProblem(Problem):
         self.geometry = GeometryConstraints(self.baseline, train, opt.get("geom_tol"),
                                             opt.get("r_le_min", 0.005), opt.get("cloud_quantile", 95.))
         self.init_doe = opt["init_doe"]
+        self.init = opt.get("init", "best")     # "best" | "random" | "lhs", see above
         doe = pd.read_csv(os.path.join(self.init_doe, "doe_results.csv"), dtype={"blade": str})
         base = doe[doe.blade == "baseline"].iloc[0]
         self.baseline_L = (base["L_ADP"], base["L_OP"])
@@ -203,8 +207,12 @@ class CascadeFoamProblem(Problem):
         **Evaluates** the finished DoE blades (no CFD) and **returns** the pop_size best ones
         (non-dominated sorting, then crowding; infeasible ones ranked by constraint violation).
         """
+        if self.init == "lhs":
+            return self._lhs_population(pop_size)
         doe = pd.read_csv(os.path.join(self.init_doe, "doe_results.csv"), dtype={"blade": str})
         doe = doe[doe.blade != "baseline"]
+        if self.init == "random":            # pop_size random DoE blades instead of the best of the whole DoE
+            doe = doe.sample(pop_size, random_state=self.config["optim"].get("seed", 1))
         cols = [f"c{k + 1}" for k in range(self.pod.n_modes)]
         rows = []
         for _, r in doe.iterrows():
@@ -220,9 +228,32 @@ class CascadeFoamProblem(Problem):
         for ind in pop:
             ind.evaluated.update({"F", "G", "H"})
         pop = RankAndCrowding().do(self, pop, n_survive=pop_size)
-        logger.info(f"initial population: {pop_size} of {len(rows)} DoE blades "
+        logger.info(f"initial population ({self.init}): {pop_size} of {len(rows)} DoE blades "
                     f"({sum(r['feasible'] for r in rows)} feasible)")
         self.observe(gen=0)
+        return pop
+
+    def _lhs_population(self, pop_size: int) -> Population:
+        """
+        **Generates** pop_size BladeGen blades (Latin hypercube over the BladeGen parameter bounds, seed = optim seed),
+        **simulates** them as generation 0 (blades failing the geometric constraints are not simulated) and **returns**
+        them as the initial population. The BladeGen dataset is cached in <outdir>/init_lhs/ for resuming.
+        """
+        bg, seed = self.config["bladegen"], self.config["optim"].get("seed", 1)
+        cache = os.path.join(self.outdir, "init_lhs", "dataset.npz")
+        if not os.path.isfile(cache):
+            ds = build_dataset(bg["exe"], bg["template"], bg["param_bounds"], self.pod.base,
+                               os.path.join(self.outdir, "init_lhs", "bladegen"), pop_size, seed, min(pop_size, 16))
+            np.savez(cache, **ds)
+        ds = np.load(cache)
+        X = np.array([self.pod.project(d) for d in ds["D"][~ds["failed"]]])
+        logger.info(f"initial population (lhs): {len(X)} of {pop_size} BladeGen blades generated")
+        self.gen, out = 0, {}
+        self._evaluate(X, out)                      # simulates generation 0, then sets self.gen = 1
+        pop = Population.new(X=X, F=out["F"], G=out["G"], H=np.zeros((len(X), 0)))
+        for ind in pop:
+            ind.evaluated.update({"F", "G", "H"})
+        logger.info(f"initial population (lhs): {sum(r['feasible'] for r in self.history)} feasible")
         return pop
 
     def observe(self, gen: int | None = None):
