@@ -27,6 +27,7 @@ include = ["aero_optim*"]
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
 doc = ["mkdocs-material", "mkdocstrings-python"]
+surrogate = ["torch", "scikit-learn", "optuna", "tensorboard"]  # aero_optim.surrogate + examples/LRN-OGV_OpenFOAM/surrogate
 
 [project.urls]
 Homepage = "https://github.com/mschouler/aero-optim"
